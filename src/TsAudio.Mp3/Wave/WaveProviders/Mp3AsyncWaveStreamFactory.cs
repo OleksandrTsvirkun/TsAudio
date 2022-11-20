@@ -18,7 +18,7 @@ namespace TsAudio.Wave.WaveProviders;
 
 public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 {
-    public static async ValueTask<Mp3AsyncWaveStreamFactory> FromStreamAsync(Stream stream, WaveStreamMetadata metadata, CancellationToken cancellationToken = default)
+    public static async ValueTask<Mp3AsyncWaveStreamFactory> FromStreamAsync(Stream stream, WaveStreamMetadata metadata, int bufferSize = 4096, CancellationToken cancellationToken = default)
     {
         if (metadata is null)
         {
@@ -38,7 +38,7 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 
             var loading = Task.Run(async () =>
             {
-                var buffer = ArrayPool<byte>.Shared.Rent(4096 * 32);
+                var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
 
                 try
                 {
@@ -48,12 +48,15 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 
                         await cacheStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
                     }
-
-                    await cacheStream.FlushAsync(cancellationToken);
                 }
                 catch(Exception)
                 {
 
+                }
+                finally
+                {
+                    await cacheStream.FlushAsync(cancellationToken);
+                    ArrayPool<byte>.Shared.Return(buffer);
                 }
             });
         }
@@ -71,7 +74,6 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
             await instance.Loading;
 
             metadata.TotalSamples = instance.SampleCount;
-            
         }
 
         instance.Metadata = metadata;
@@ -153,9 +155,9 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
         this.Loading = LoadAsync(cancellationToken);
     }
 
-    private Task LoadAsync(CancellationToken cancellationToken = default)
+    private async Task<Task> LoadAsync(CancellationToken cancellationToken = default)
     {
-        return Task.Factory.StartNew(async () =>
+        return await Task.Factory.StartNew(async () =>
         {
             try
             {
@@ -178,7 +180,7 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
             {
 
             }
-        }, cancellationToken, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default).Unwrap();
+        }, cancellationToken, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
     }
 
     public void Dispose()
