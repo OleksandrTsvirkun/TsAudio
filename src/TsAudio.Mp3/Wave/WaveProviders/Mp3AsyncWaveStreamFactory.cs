@@ -141,11 +141,34 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
             throw new InvalidOperationException("Stream does not contain Mp3Frames");
         }
 
-        var frameDescriptor = this.framesEnumerator.Current;
+        var firstFrameDescriptor = this.framesEnumerator.Current;
 
-        this.indices.Add(frameDescriptor.Index);
+        hasFrames = await this.framesEnumerator.MoveNextAsync(cancellationToken);
 
-        var frame = frameDescriptor.Frame;
+        if(!hasFrames)
+        {
+            throw new InvalidOperationException("Stream does not contain Mp3Frames");
+        }
+
+        var secondFrameDescriptor = this.framesEnumerator.Current;
+
+        var firstFrame = firstFrameDescriptor.Frame;
+        var secondFrame = secondFrameDescriptor.Frame;
+
+        if (firstFrame.SampleRate != secondFrame.SampleRate
+            || firstFrame.ChannelMode != secondFrame.ChannelMode)
+        {
+            firstFrameDescriptor = secondFrameDescriptor;
+        }
+
+        if (!firstFrameDescriptor.Equals(secondFrameDescriptor))
+        {
+            this.indices.Add(firstFrameDescriptor.Index);
+        }
+
+        this.indices.Add(secondFrameDescriptor.Index);
+
+        var frame = firstFrameDescriptor.Frame;
 
         this.Mp3WaveFormat = new Mp3WaveFormat(frame.SampleRate,
                                                 frame.ChannelMode == ChannelMode.Mono ? 1 : 2,
