@@ -100,7 +100,7 @@ namespace TsAudio.Formats.Mp3
                         yield return frame.Value;
                     }
 
-                    pipeReader.AdvanceTo(buffer.Start);
+                    pipeReader.AdvanceTo(buffer.Start, buffer.End);
                 }
 
                 if(result.IsCompleted)
@@ -163,7 +163,7 @@ namespace TsAudio.Formats.Mp3
                         yield return (index, frame.Value);
                     }
                     
-                    pipeReader.AdvanceTo(buffer.Start);
+                    pipeReader.AdvanceTo(buffer.Start, buffer.End);
                 }
 
                 if(result.IsCompleted)
