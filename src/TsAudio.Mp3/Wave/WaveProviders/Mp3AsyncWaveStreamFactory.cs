@@ -180,7 +180,7 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
             {
 
             }
-        }, cancellationToken, TaskCreationOptions.RunContinuationsAsynchronously, TaskScheduler.Default);
+        }, cancellationToken, TaskCreationOptions.RunContinuationsAsynchronously | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
     }
 
     public void Dispose()
