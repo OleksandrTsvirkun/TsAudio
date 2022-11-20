@@ -1,0 +1,68 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.2.32526.322
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio", "src\TsAudio\TsAudio.csproj", "{E8740DBC-D78F-41E7-885D-AB15751CC571}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio.Drivers.WinMM", "src\TsAudio.Drivers.WinMM\TsAudio.Drivers.WinMM.csproj", "{03E945CB-D71B-48A0-93CC-89372C8FD266}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio.Mp3", "src\TsAudio.Mp3\TsAudio.Mp3.csproj", "{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C3A82F01-4B44-4499-A11E-6375C4977B04}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{D7CEA09C-AB83-432F-893B-2ACD0CEB2E43}"
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio.WaveForm.Skia", "src\TsAudio.WaveForm.Skia\TsAudio.WaveForm.Skia.csproj", "{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{B5D0B8EC-67DC-458B-9AE4-72AF760C495D}"
+	ProjectSection(SolutionItems) = preProject
+		GitVersion.yml = GitVersion.yml
+	EndProjectSection
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = ".github", ".github", "{084342A8-4D7B-4A4B-A99C-3D4B0948F551}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{521075AD-7C0E-4087-A2BB-5600B125D632}"
+	ProjectSection(SolutionItems) = preProject
+		.github\workflows\build.yml = .github\workflows\build.yml
+		.github\workflows\release.yml = .github\workflows\release.yml
+	EndProjectSection
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{E8740DBC-D78F-41E7-885D-AB15751CC571}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E8740DBC-D78F-41E7-885D-AB15751CC571}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E8740DBC-D78F-41E7-885D-AB15751CC571}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E8740DBC-D78F-41E7-885D-AB15751CC571}.Release|Any CPU.Build.0 = Release|Any CPU
+		{03E945CB-D71B-48A0-93CC-89372C8FD266}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{03E945CB-D71B-48A0-93CC-89372C8FD266}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{03E945CB-D71B-48A0-93CC-89372C8FD266}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{03E945CB-D71B-48A0-93CC-89372C8FD266}.Release|Any CPU.Build.0 = Release|Any CPU
+		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Release|Any CPU.Build.0 = Release|Any CPU
+		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{E8740DBC-D78F-41E7-885D-AB15751CC571} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
+		{03E945CB-D71B-48A0-93CC-89372C8FD266} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
+		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
+		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
+		{084342A8-4D7B-4A4B-A99C-3D4B0948F551} = {B5D0B8EC-67DC-458B-9AE4-72AF760C495D}
+		{521075AD-7C0E-4087-A2BB-5600B125D632} = {084342A8-4D7B-4A4B-A99C-3D4B0948F551}
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {06DEE2F1-8630-4386-9B69-0D607FF1FD23}
+	EndGlobalSection
+EndGlobal
