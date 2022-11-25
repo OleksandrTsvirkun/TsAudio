@@ -1,5 +1,6 @@
 using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -73,6 +74,7 @@ namespace TsAudio.Sample.SampleProviders
             return sourceSamples * 3;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void TransformSamples(Span<byte> buffer, ReadOnlySpan<float> sampleBuffer)
         {
             int destOffset = 0;

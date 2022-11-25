@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Linq;
 using System.Numerics;
+using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -32,6 +33,7 @@ namespace TsAudio.Sample.PeekProviders
             return true;
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         private PeakInfo CalculatePeak(int count)
         {
             var span = this.BufferOwner.Memory.Span.Slice(0, count);

@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Buffers;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Threading;
 using System.Threading.Tasks;
@@ -74,6 +75,7 @@ namespace TsAudio.Sample.SampleProviders
             return sourceSamples * sizeof(short);
         }
 
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
         protected virtual void TransformSamples(Span<byte> buffer, ReadOnlySpan<float> sampleBuffer)
         {
             var destWaveBuffer = MemoryMarshal.Cast<byte, short>(buffer);
