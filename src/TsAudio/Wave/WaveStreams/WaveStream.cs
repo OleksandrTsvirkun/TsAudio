@@ -4,6 +4,7 @@ using System.IO;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveStreams;
+
 public abstract class WaveStream : Stream, IWaveStream
 {
     public abstract WaveFormat WaveFormat { get; }
@@ -38,7 +39,10 @@ public abstract class WaveStream : Stream, IWaveStream
         throw new NotImplementedException();
     }
 
-    public sealed override void Flush() { }
+    public sealed override void Flush() 
+    {
+        throw new NotSupportedException("Can't flush of WaveStream");
+    }
 
     public sealed override void Write(byte[] buffer, int offset, int count)
     {
