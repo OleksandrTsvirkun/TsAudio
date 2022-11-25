@@ -19,10 +19,10 @@ namespace TsAudio.Wave.WaveFormats
         /// <summary>
         /// Allows the extra data to be read
         /// </summary>
-        public byte[] ExtraData => this.extraData; 
+        public byte[] ExtraData => this.extraData;
 
-
-        public static WaveFormat FromFormatChunk(BinaryReader reader, int formatChunkLength)
+        //TODO: reimplement without binary formatter
+        public static WaveFormat FromFormatChunk(Stream stream, int formatChunkLength)
         {
             var waveFormat = new WaveFormatExtraData();
 
@@ -31,16 +31,25 @@ namespace TsAudio.Wave.WaveFormats
                 throw new InvalidDataException("Invalid WaveFormat Structure");
             }
 
-            waveFormat.waveFormatTag = (WaveFormatEncoding)reader.ReadUInt16();
-            waveFormat.channels = reader.ReadInt16();
-            waveFormat.sampleRate = reader.ReadInt32();
-            waveFormat.averageBytesPerSecond = reader.ReadInt32();
-            waveFormat.blockAlign = reader.ReadInt16();
-            waveFormat.bitsPerSample = reader.ReadInt16();
+            Span<byte> buffer = stackalloc byte[2 + 2 + 4 + 4 + 2 + 2 + 2];
+
+            stream.Read(buffer);
+
+            waveFormat.waveFormatTag = MemoryMarshal.Read<WaveFormatEncoding>(buffer.Slice(0, 2));
+            waveFormat.channels = MemoryMarshal.Read<short>(buffer.Slice(2, 2));
+            waveFormat.sampleRate = MemoryMarshal.Read<short>(buffer.Slice(4, 4));
+            waveFormat.averageBytesPerSecond = MemoryMarshal.Read<short>(buffer.Slice(8, 4));
+            waveFormat.blockAlign = MemoryMarshal.Read<short>(buffer.Slice(12, 2));
+            waveFormat.bitsPerSample = MemoryMarshal.Read<short>(buffer.Slice(14, 2));
 
             if(formatChunkLength > 16)
             {
-                waveFormat.extraSize = reader.ReadInt16();
+                Span<byte> span = stackalloc byte[2];
+
+                stream.Read(span);
+
+                waveFormat.extraSize = MemoryMarshal.Read<short>(span);
+
                 if(waveFormat.extraSize != formatChunkLength - 18)
                 {
                     Debug.WriteLine("Format chunk mismatch");
@@ -50,7 +59,7 @@ namespace TsAudio.Wave.WaveFormats
 
             if(waveFormat.extraSize > 0)
             {
-                reader.Read(waveFormat.extraData, 0, waveFormat.extraSize);
+                stream.Read(waveFormat.extraData);
             }
 
             return waveFormat;
