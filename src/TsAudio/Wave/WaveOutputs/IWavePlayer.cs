@@ -5,16 +5,6 @@ using TsAudio.Wave.WaveProviders;
 
 namespace TsAudio.Wave.WaveOutputs
 {
-    public class PlaybackStateArgs : EventArgs
-    {
-        public PlaybackState PlaybackState { get; }
-
-        public PlaybackStateArgs(PlaybackState playbackState)
-        {
-            this.PlaybackState = playbackState;
-        }
-    }
-
     /// <summary>
     /// Represents the interface to a device that can play a WaveFile
     /// </summary>
