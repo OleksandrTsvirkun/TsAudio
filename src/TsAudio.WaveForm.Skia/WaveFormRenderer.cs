@@ -5,14 +5,11 @@ using TsAudio.Sample.SampleProviders;
 using System.Threading;
 using SkiaSharp;
 using TsAudio.Wave.WaveForm;
-using TsAudio.Utils;
 
 namespace TsAudio.WaveForm.Skia
 {
     public class SkiaWaveFormRenderer
     {
-        private static TaskScheduler scheduler = new SingleThreadTaskScheduler();
-
         private CancellationTokenSource cts;
 
         public SkiaWaveFormRendererSettings Settings { get; }
@@ -93,7 +90,7 @@ namespace TsAudio.WaveForm.Skia
                     updater?.Invoke();
                     await peakProvider.DisposeAsync();
                 }
-            }, cancellationToken, TaskCreationOptions.LongRunning, scheduler);
+            }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
         }
     }
 }
