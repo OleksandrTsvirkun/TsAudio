@@ -24,8 +24,8 @@ namespace TsAudio.Wave.WaveProviders
         protected volatile bool waitForWrite;
 
         protected int writeGate;
-        protected bool isEmpty;
-        protected bool isFlushed;
+        protected volatile bool isEmpty;
+        protected volatile bool isFlushed;
 
         /// <summary>
         /// Gets the WaveFormat
