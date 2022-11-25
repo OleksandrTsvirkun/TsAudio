@@ -7,28 +7,18 @@ namespace TsAudio.Wave.WaveInputs
     /// </summary>
     public class WaveInEventArgs : EventArgs
     {
-        private byte[] buffer;
-        private int bytes;
-
-
         /// <summary>
         /// Buffer containing recorded data. Note that it might not be completely
-        /// full. <seealso cref="BytesRecorded"/>
+        /// full.
         /// </summary>
-        public byte[] Buffer => buffer;
-
-        /// <summary>
-        /// The number of recorded bytes in Buffer. <seealso cref="Buffer"/>
-        /// </summary>
-        public int BytesRecorded => bytes;
+        public ReadOnlyMemory<byte> Data { get; private set; }
 
         /// <summary>
         /// Creates new WaveInEventArgs
         /// </summary>
         public WaveInEventArgs(byte[] buffer, int bytes)
         {
-            this.buffer = buffer;
-            this.bytes = bytes;
+            this.Data = buffer.AsMemory(0, bytes);
         }
     }
 }
