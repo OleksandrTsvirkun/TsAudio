@@ -1,6 +1,6 @@
 ﻿using System;
 
-namespace TsAudio.Wave.WaveOutputs
+namespace TsAudio.Wave.WaveInputs
 {
     /// <summary>
     /// Stopped Event Args
