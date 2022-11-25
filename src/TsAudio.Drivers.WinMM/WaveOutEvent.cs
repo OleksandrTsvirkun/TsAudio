@@ -82,15 +82,9 @@ namespace TsAudio.Drivers.WinMM
         {
             get
             {
-                int stereoVolume;
-                MmResult result;
+                int stereoVolume = 0;
 
-                lock(waveOutLock)
-                {
-                    result = WaveInterop.waveOutGetVolume(hWaveOut, out stereoVolume);
-                }
-
-                MmException.Try(result, nameof(WaveInterop.waveOutGetVolume));
+                MmException.TryExecute(() => WaveInterop.waveOutGetVolume(hWaveOut, out var stereoVolume), waveOutLock, nameof(WaveInterop.waveOutGetVolume));
 
                 return (stereoVolume & 0xFFFF) / (float)0xFFFF;
             }
@@ -103,14 +97,7 @@ namespace TsAudio.Drivers.WinMM
 
                 int stereoVolume = (int)(left * 0xFFFF) + ((int)(right * 0xFFFF) << 16);
 
-                MmResult result;
-
-                lock(waveOutLock)
-                {
-                    result = WaveInterop.waveOutSetVolume(hWaveOut, stereoVolume);
-                }
-
-                MmException.Try(result, nameof(WaveInterop.waveOutSetVolume));
+                MmException.TryExecute(() => WaveInterop.waveOutSetVolume(hWaveOut, stereoVolume), waveOutLock, nameof(WaveInterop.waveOutSetVolume));
             }
         }
 
@@ -178,7 +165,7 @@ namespace TsAudio.Drivers.WinMM
 
                 MmException.Try(result, nameof(WaveInterop.waveOutOpenWindow));
 
-                this.buffers = new WaveOutBuffer[NumberOfBuffers];
+                this.buffers = new WaveOutBuffer[this.NumberOfBuffers];
                 this.PlaybackState = PlaybackState.Stopped;
 
                 for(var n = 0; n < this.NumberOfBuffers; n++)
@@ -211,7 +198,7 @@ namespace TsAudio.Drivers.WinMM
                     {
                         try
                         {
-                            await PlaybackThread(cancellationToken);
+                            await DoPlayback(cancellationToken);
                         }
                         catch(Exception)
                         {
@@ -237,15 +224,6 @@ namespace TsAudio.Drivers.WinMM
             this.cancellationTokenSource?.Cancel();
             this.cancellationTokenSource?.Dispose();
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.cancellationTokenSource.Token.Register(() =>
-            {
-                Console.WriteLine("Playback cancelced");
-            });
-        }
-
-        private ValueTask PlaybackThread(CancellationToken cancellationToken = default)
-        {
-            return DoPlayback(cancellationToken);
         }
 
         private async ValueTask DoPlayback(CancellationToken cancellationToken = default)
@@ -286,9 +264,7 @@ namespace TsAudio.Drivers.WinMM
                 {
                     this.PlaybackState = PlaybackState.Paused;
 
-                    var result = WaveInterop.waveOutPause(this.hWaveOut);
-
-                    MmException.Try(result, nameof(WaveInterop.waveOutPause));
+                    MmException.TryExecute(() => WaveInterop.waveOutPause(this.hWaveOut), waveOutLock, nameof(WaveInterop.waveOutPause));
                 }
             }
         }
@@ -302,9 +278,7 @@ namespace TsAudio.Drivers.WinMM
             {
                 if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
                 {
-                    var result = WaveInterop.waveOutRestart(this.hWaveOut);
-
-                    MmException.Try(result, nameof(WaveInterop.waveOutRestart));
+                    MmException.TryExecute(() => WaveInterop.waveOutRestart(this.hWaveOut), waveOutLock, nameof(WaveInterop.waveOutRestart));
 
                     this.PlaybackState = PlaybackState.Playing;
                 }
@@ -327,9 +301,7 @@ namespace TsAudio.Drivers.WinMM
 
                     this.cancellationTokenSource?.Cancel();
 
-                    var result = WaveInterop.waveOutReset(this.hWaveOut);
-
-                    MmException.Try(result, nameof(WaveInterop.waveOutReset));
+                    MmException.TryExecute(() => WaveInterop.waveOutReset(this.hWaveOut), waveOutLock, nameof(WaveInterop.waveOutReset));
 
                     this.callbackEvent.Set(); // give the thread a kick, make sure we exit
                 }
@@ -347,19 +319,14 @@ namespace TsAudio.Drivers.WinMM
             var mmTime = new MmTime();
             mmTime.wType = MmTime.TIME_BYTES; // request results in bytes, TODO: perhaps make this a little more flexible and support the other types?
 
-            lock(this.waveOutLock)
+            MmException.TryExecute(() => WaveInterop.waveOutGetPosition(this.hWaveOut, ref mmTime, Marshal.SizeOf(mmTime)), waveOutLock, nameof(WaveInterop.waveOutGetPosition));
+
+            if(mmTime.wType != MmTime.TIME_BYTES)
             {
-
-                var result = WaveInterop.waveOutGetPosition(this.hWaveOut, ref mmTime, Marshal.SizeOf(mmTime));
-                MmException.Try(result, nameof(WaveInterop.waveOutGetPosition));
-
-                if(mmTime.wType != MmTime.TIME_BYTES)
-                {
-                    throw new Exception(string.Format("{3}: wType -> Expected {0}, Received {1}", MmTime.TIME_BYTES, mmTime.wType, nameof(WaveInterop.waveOutGetPosition)));
-                }
-                    
-                return mmTime.cb;
+                throw new Exception(string.Format("{3}: wType -> Expected {0}, Received {1}", MmTime.TIME_BYTES, mmTime.wType, nameof(WaveInterop.waveOutGetPosition)));
             }
+
+            return mmTime.cb;
         }
 
         #region Dispose Pattern
@@ -404,8 +371,7 @@ namespace TsAudio.Drivers.WinMM
 
                 if(this.hWaveOut != IntPtr.Zero)
                 {
-                    var result = WaveInterop.waveOutClose(this.hWaveOut);
-                    MmException.Try(result, nameof(WaveInterop.waveOutClose));
+                    MmException.TryExecute(() => WaveInterop.waveOutClose(this.hWaveOut), waveOutLock, nameof(WaveInterop.waveOutClose));
                     this.hWaveOut = IntPtr.Zero;
                 }
             }

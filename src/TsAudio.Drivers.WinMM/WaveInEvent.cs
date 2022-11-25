@@ -3,7 +3,6 @@ using System.Runtime.InteropServices;
 using System.Threading;
 using TsAudio.Drivers.WinMM.MmeInterop;
 using TsAudio.Wave.WaveInputs;
-using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Drivers.WinMM
@@ -15,6 +14,11 @@ namespace TsAudio.Drivers.WinMM
     /// </summary>
     public class WaveInEvent : IWaveIn
     {
+        /// <summary>
+        /// Returns the number of Wave In devices available in the system
+        /// </summary>
+        public static int DeviceCount => WaveInterop.waveInGetNumDevs();
+
         private readonly AutoResetEvent callbackEvent;
         private readonly SynchronizationContext syncContext;
         private IntPtr waveInHandle;
@@ -32,38 +36,6 @@ namespace TsAudio.Drivers.WinMM
         public event EventHandler<StoppedEventArgs> RecordingStopped;
 
         /// <summary>
-        /// Prepares a Wave input device for recording
-        /// </summary>
-        public WaveInEvent()
-        {
-            this.callbackEvent = new AutoResetEvent(false);
-            this.syncContext = SynchronizationContext.Current;
-            this.DeviceNumber = 0;
-            this.WaveFormat = new WaveFormat(8000, 16, 1);
-            this.BufferMilliseconds = 100;
-            this.NumberOfBuffers = 3;
-            this.captureState = CaptureState.Stopped;
-        }
-
-        /// <summary>
-        /// Returns the number of Wave In devices available in the system
-        /// </summary>
-        public static int DeviceCount => WaveInterop.waveInGetNumDevs();
-
-        /// <summary>
-        /// Retrieves the capabilities of a waveIn device
-        /// </summary>
-        /// <param name="devNumber">Device to test</param>
-        /// <returns>The WaveIn device capabilities</returns>
-        public static WaveInCapabilities GetCapabilities(int devNumber)
-        {
-            WaveInCapabilities caps = new WaveInCapabilities();
-            int structSize = Marshal.SizeOf(caps);
-            MmException.TryExecute(() => WaveInterop.waveInGetDevCaps((IntPtr)devNumber, out caps, structSize), nameof(WaveInterop.waveInGetDevCaps));
-            return caps;
-        }
-
-        /// <summary>
         /// Milliseconds for the buffer. Recommended value is 100ms
         /// </summary>
         public int BufferMilliseconds { get; set; }
@@ -78,6 +50,32 @@ namespace TsAudio.Drivers.WinMM
         /// </summary>
         public int DeviceNumber { get; set; }
 
+        /// <summary>
+        /// Prepares a Wave input device for recording
+        /// </summary>
+        public WaveInEvent()
+        {
+            this.callbackEvent = new AutoResetEvent(false);
+            this.syncContext = SynchronizationContext.Current;
+            this.DeviceNumber = 0;
+            this.WaveFormat = new WaveFormat(8000, 16, 1);
+            this.BufferMilliseconds = 100;
+            this.NumberOfBuffers = 3;
+            this.captureState = CaptureState.Stopped;
+        }
+
+        /// <summary>
+        /// Retrieves the capabilities of a waveIn device
+        /// </summary>
+        /// <param name="devNumber">Device to test</param>
+        /// <returns>The WaveIn device capabilities</returns>
+        public static WaveInCapabilities GetCapabilities(int devNumber)
+        {
+            WaveInCapabilities caps = new WaveInCapabilities();
+            MmException.TryExecute(() => WaveInterop.waveInGetDevCaps((IntPtr)devNumber, out caps, Marshal.SizeOf(caps)), nameof(WaveInterop.waveInGetDevCaps));
+            return caps;
+        }
+
         private void CreateBuffers()
         {
             // Default to three buffers of 100ms each
@@ -87,24 +85,28 @@ namespace TsAudio.Drivers.WinMM
                 bufferSize -= bufferSize % WaveFormat.BlockAlign;
             }
 
-            buffers = new WaveInBuffer[NumberOfBuffers];
-            for (int n = 0; n < buffers.Length; n++)
+            this.buffers = new WaveInBuffer[this.NumberOfBuffers];
+            for (int n = 0; n < this.buffers.Length; n++)
             {
-                buffers[n] = new WaveInBuffer(waveInHandle, bufferSize);
+                this.buffers[n] = new WaveInBuffer(this.waveInHandle, bufferSize);
             }
         }
 
         private void OpenWaveInDevice()
         {
-            CloseWaveInDevice();
+            this.CloseWaveInDevice();
 
-            MmResult result = WaveInterop.waveInOpenWindow(out waveInHandle, (IntPtr)DeviceNumber, WaveFormat,
-                callbackEvent.SafeWaitHandle.DangerousGetHandle(), 
+            var callbackHandle = this.callbackEvent.SafeWaitHandle.DangerousGetHandle();
+
+            MmResult result = WaveInterop.waveInOpenWindow(out this.waveInHandle, 
+                (IntPtr)this.DeviceNumber, 
+                this.WaveFormat,
+                callbackHandle, 
                 IntPtr.Zero, WaveInOutOpenFlags.CallbackEvent);
 
             MmException.Try(result, nameof(WaveInterop.waveInOpen));
 
-            CreateBuffers();
+            this.CreateBuffers();
         }
 
         /// <summary>
@@ -112,18 +114,18 @@ namespace TsAudio.Drivers.WinMM
         /// </summary>
         public void StartRecording()
         {
-            if (captureState != CaptureState.Stopped)
+            if (this.captureState != CaptureState.Stopped)
+            {
                 throw new InvalidOperationException("Already recording");
+            }
 
-            OpenWaveInDevice();
+            this.OpenWaveInDevice();
 
-            var result = WaveInterop.waveInStart(waveInHandle);
+            MmException.TryExecute(() => WaveInterop.waveInStart(this.waveInHandle), nameof(WaveInterop.waveInStart));
 
-            MmException.Try(result, nameof(WaveInterop.waveInStart));
+            this.captureState = CaptureState.Starting;
 
-            captureState = CaptureState.Starting;
-
-            ThreadPool.QueueUserWorkItem((state) => RecordThread(), null);
+            ThreadPool.QueueUserWorkItem(_ => RecordThread(), null);
         }
 
         private void RecordThread()
@@ -131,7 +133,7 @@ namespace TsAudio.Drivers.WinMM
             Exception exception = null;
             try
             {
-                DoRecording();
+                this.DoRecording();
             }
             catch (Exception e)
             {
@@ -139,27 +141,29 @@ namespace TsAudio.Drivers.WinMM
             }
             finally
             {
-                captureState = CaptureState.Stopped;
-                RaiseRecordingStoppedEvent(exception);
+                this.captureState = CaptureState.Stopped;
+                this.RaiseRecordingStoppedEvent(exception);
             }
         }
 
         private void DoRecording()
         {
-            captureState = CaptureState.Capturing;
-            foreach (var buffer in buffers)
+            this.captureState = CaptureState.Capturing;
+
+            foreach (var buffer in this.buffers)
             {
                 if (!buffer.InQueue)
                 {
                     buffer.Reuse();
                 }
             }
-            while (captureState == CaptureState.Capturing)
+
+            while (this.captureState == CaptureState.Capturing)
             {
-                if (callbackEvent.WaitOne())
+                if (this.callbackEvent.WaitOne())
                 {
                     // requeue any buffers returned to us
-                    foreach (var buffer in buffers)
+                    foreach (var buffer in this.buffers)
                     {
                         if (buffer.Done)
                         {

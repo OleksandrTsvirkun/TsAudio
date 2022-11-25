@@ -38,11 +38,19 @@
         public static byte LinearToMuLawSample(short sample)
         {
             int sign = (sample >> 8) & 0x80;
+
             if (sign != 0)
+            {
                 sample = (short)-sample;
+            }
+                
             if (sample > cClip)
+            {
                 sample = cClip;
+            }
+
             sample = (short)(sample + cBias);
+
             int exponent = (int)MuLawCompressTable[(sample >> 7) & 0xFF];
             int mantissa = (sample >> (exponent + 3)) & 0x0F;
             int compressedByte = ~(sign | (exponent << 4) | mantissa);

@@ -14,6 +14,11 @@ namespace TsAudio.Wave.WaveFormats
         private readonly short samplesPerBlock;
 
         /// <summary>
+        /// Samples per block
+        /// </summary>
+        public short SamplesPerBlock => this.samplesPerBlock;
+
+        /// <summary>
         /// Creates a GSM 610 WaveFormat
         /// For now hardcoded to 13kbps
         /// </summary>
@@ -28,10 +33,5 @@ namespace TsAudio.Wave.WaveFormats
             this.extraSize = 2;
             this.samplesPerBlock = 320;
         }
-
-        /// <summary>
-        /// Samples per block
-        /// </summary>
-        public short SamplesPerBlock => this.samplesPerBlock;
     }
 }

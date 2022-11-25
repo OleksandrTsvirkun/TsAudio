@@ -1,7 +1,6 @@
 using System;
 using System.Runtime.InteropServices;
 using TsAudio.Drivers.WinMM.MmeInterop;
-using TsAudio.Utils;
 using System.Buffers;
 using TsAudio.Wave.WaveProviders;
 using System.Threading.Tasks;
@@ -57,14 +56,30 @@ namespace TsAudio.Drivers.WinMM
             this.header.loops = 1;
             this.hThis = GCHandle.Alloc(this);
 
-            MmResult result;
+            MmException.TryExecute(() => WaveInterop.waveOutPrepareHeader(this.hWaveOut, this.header, Marshal.SizeOf(this.header)), this.waveOutLock, nameof(WaveInterop.waveOutPrepareHeader));
+        }
 
-            lock (waveOutLock)
+        /// this is called by the WAVE callback and should be used to refill the buffer
+        public async ValueTask<bool> OnDoneAsync(CancellationToken cancellationToken = default)
+        {
+            var buffer = this.buffer.AsMemory(0, this.bufferSize);
+            var bytes = await this.waveStream.ReadAsync(buffer, cancellationToken);
+
+            if (bytes == 0)
             {
-                result = WaveInterop.waveOutPrepareHeader(hWaveOut, header, Marshal.SizeOf(header));
+                return false;
             }
 
-            MmException.Try(result, nameof(WaveInterop.waveOutPrepareHeader));
+            this.buffer.AsSpan(bytes).Clear();
+
+            this.WriteToWaveOut();
+
+            return true;
+        }
+
+        private void WriteToWaveOut()
+        {
+            MmException.TryExecute(() => WaveInterop.waveOutWrite(this.hWaveOut, this.header, Marshal.SizeOf(this.header)), this.waveOutLock, nameof(WaveInterop.waveOutWrite));
         }
 
         #region Dispose Pattern
@@ -92,7 +107,7 @@ namespace TsAudio.Drivers.WinMM
         /// </summary>
         protected void Dispose(bool disposing)
         {
-            if (disposing)
+            if(disposing)
             {
                 // free managed resources
             }
@@ -108,16 +123,16 @@ namespace TsAudio.Drivers.WinMM
                 ArrayPool<byte>.Shared.Return(this.buffer);
             }
 
-            if (this.hThis.IsAllocated)
+            if(this.hThis.IsAllocated)
             {
                 this.hThis.Free();
             }
-                
-            if (this.hWaveOut != IntPtr.Zero)
+
+            if(this.hWaveOut != IntPtr.Zero)
             {
                 MmResult result;
 
-                lock (this.waveOutLock)
+                lock(this.waveOutLock)
                 {
                     result = WaveInterop.waveOutUnprepareHeader(this.hWaveOut, this.header, Marshal.SizeOf(this.header));
                 }
@@ -130,33 +145,5 @@ namespace TsAudio.Drivers.WinMM
 
         #endregion
 
-        /// this is called by the WAVE callback and should be used to refill the buffer
-        public async ValueTask<bool> OnDoneAsync(CancellationToken cancellationToken = default)
-        {
-            var bytes = await this.waveStream.ReadAsync(buffer.AsMemory(0, this.bufferSize), cancellationToken);
-
-            if (bytes == 0)
-            {
-                return false;
-            }
-
-            this.buffer.AsSpan(bytes).Clear();
-
-            WriteToWaveOut();
-
-            return true;
-        }
-
-        private void WriteToWaveOut()
-        {
-            MmResult result;
-
-            lock (this.waveOutLock)
-            {
-                result = WaveInterop.waveOutWrite(this.hWaveOut, this.header, Marshal.SizeOf(this.header));
-            }
-
-            MmException.Try(result, nameof(WaveInterop.waveOutWrite));
-        }
     }
 }

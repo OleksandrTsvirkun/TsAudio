@@ -1,4 +1,5 @@
 using System;
+using System.Buffers;
 using System.Runtime.InteropServices;
 using TsAudio.Drivers.WinMM.MmeInterop;
 
@@ -11,7 +12,7 @@ namespace TsAudio.Drivers.WinMM
     public class WaveInBuffer : IDisposable
     {
         private WaveHeader header;
-        private readonly Int32 bufferSize; // allocated bytes, may not be the same as bytes read
+        private readonly int bufferSize; // allocated bytes, may not be the same as bytes read
         private readonly byte[] buffer;
         private GCHandle hBuffer;
         private IntPtr waveInHandle;
@@ -19,18 +20,45 @@ namespace TsAudio.Drivers.WinMM
         private GCHandle hThis; // for the user callback
 
         /// <summary>
+        /// Provides access to the actual record buffer (for reading only)
+        /// </summary>
+        public byte[] Data => this.buffer;
+
+        /// <summary>
+        /// Indicates whether the Done flag is set on this buffer
+        /// </summary>
+        public bool Done => (this.header.flags & WaveHeaderFlags.Done) == WaveHeaderFlags.Done;
+
+
+        /// <summary>
+        /// Indicates whether the InQueue flag is set on this buffer
+        /// </summary>
+        public bool InQueue => (this.header.flags & WaveHeaderFlags.InQueue) == WaveHeaderFlags.InQueue;
+
+        /// <summary>
+        /// Number of bytes recorded
+        /// </summary>
+        public int BytesRecorded => this.header.bytesRecorded;
+
+        /// <summary>
+        /// The buffer size in bytes
+        /// </summary>
+        public int BufferSize => this.bufferSize;
+
+        /// <summary>
         /// creates a new wavebuffer
         /// </summary>
         /// <param name="waveInHandle">WaveIn device to write to</param>
         /// <param name="bufferSize">Buffer size in bytes</param>
-        public WaveInBuffer(IntPtr waveInHandle, Int32 bufferSize)
+        public WaveInBuffer(IntPtr waveInHandle, int bufferSize)
         {
             this.bufferSize = bufferSize;
-            this.buffer = new byte[bufferSize];
+            this.buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
             this.hBuffer = GCHandle.Alloc(buffer, GCHandleType.Pinned);
             this.waveInHandle = waveInHandle;
 
             this.header = new WaveHeader();
+
             this.hHeader = GCHandle.Alloc(header, GCHandleType.Pinned);
             this.header.dataBuffer = hBuffer.AddrOfPinnedObject();
             this.header.bufferLength = bufferSize;
@@ -38,7 +66,8 @@ namespace TsAudio.Drivers.WinMM
             this.hThis = GCHandle.Alloc(this);
             this.header.userData = (IntPtr)hThis;
 
-            MmException.Try(WaveInterop.waveInPrepareHeader(waveInHandle, header, Marshal.SizeOf(header)), "waveInPrepareHeader");
+            MmException.TryExecute(() => WaveInterop.waveInPrepareHeader(this.waveInHandle, this.header, Marshal.SizeOf(this.header)), nameof(WaveInterop.waveInPrepareHeader));
+
             //MmException.Try(WaveInterop.waveInAddBuffer(waveInHandle, header, Marshal.SizeOf(header)), "waveInAddBuffer");
         }
 
@@ -48,10 +77,10 @@ namespace TsAudio.Drivers.WinMM
         public void Reuse()
         {
             // TEST: we might not actually need to bother unpreparing and repreparing
-            MmException.Try(WaveInterop.waveInUnprepareHeader(waveInHandle, header, Marshal.SizeOf(header)), "waveUnprepareHeader");
-            MmException.Try(WaveInterop.waveInPrepareHeader(waveInHandle, header, Marshal.SizeOf(header)), "waveInPrepareHeader");
+            //MmException.Try(WaveInterop.waveInUnprepareHeader(waveInHandle, header, Marshal.SizeOf(header)), "waveUnprepareHeader");
+            //MmException.Try(WaveInterop.waveInPrepareHeader(waveInHandle, header, Marshal.SizeOf(header)), "waveInPrepareHeader");
             //System.Diagnostics.Debug.Assert(header.bytesRecorded == 0, "bytes recorded was not reset properly");
-            MmException.Try(WaveInterop.waveInAddBuffer(waveInHandle, header, Marshal.SizeOf(header)), "waveInAddBuffer");
+            MmException.TryExecute(() => WaveInterop.waveInAddBuffer(this.waveInHandle, this.header, Marshal.SizeOf(this.header)), nameof(WaveInterop.waveInAddBuffer));
         }
 
         #region Dispose Pattern
@@ -79,75 +108,33 @@ namespace TsAudio.Drivers.WinMM
         /// </summary>
         protected void Dispose(bool disposing)
         {
-            if (disposing)
+            if(disposing)
             {
                 // free managed resources
             }
             // free unmanaged resources
-            if (waveInHandle != IntPtr.Zero)
+            if(this.waveInHandle != IntPtr.Zero)
             {
-                WaveInterop.waveInUnprepareHeader(waveInHandle, header, Marshal.SizeOf(header));
+                WaveInterop.waveInUnprepareHeader(this.waveInHandle, this.header, Marshal.SizeOf(this.header));
                 waveInHandle = IntPtr.Zero;
             }
-            if (hHeader.IsAllocated)
-                hHeader.Free();
-            if (hBuffer.IsAllocated)
-                hBuffer.Free();
-            if (hThis.IsAllocated)
-                hThis.Free();
+            if(this.hHeader.IsAllocated)
+            {
+                this.hHeader.Free();
+            }
+                
+            if(this.hBuffer.IsAllocated)
+            {
+                this.hBuffer.Free();
+            }
 
+            if(this.hThis.IsAllocated)
+            {
+                this.hThis.Free();
+            }
         }
 
         #endregion
 
-        /// <summary>
-        /// Provides access to the actual record buffer (for reading only)
-        /// </summary>
-        public byte[] Data => buffer;
-
-        /// <summary>
-        /// Indicates whether the Done flag is set on this buffer
-        /// </summary>
-        public bool Done
-        {
-            get
-            {
-                return (header.flags & WaveHeaderFlags.Done) == WaveHeaderFlags.Done;
-            }
-        }
-
-
-        /// <summary>
-        /// Indicates whether the InQueue flag is set on this buffer
-        /// </summary>
-        public bool InQueue
-        {
-            get
-            {
-                return (header.flags & WaveHeaderFlags.InQueue) == WaveHeaderFlags.InQueue;
-            }
-        }
-
-        /// <summary>
-        /// Number of bytes recorded
-        /// </summary>
-        public int BytesRecorded
-        {
-            get
-            {
-                return header.bytesRecorded;
-            }
-        }
-
-        /// <summary>
-        /// The buffer size in bytes
-        /// </summary>
-        public Int32 BufferSize
-        {
-            get
-            {
-                return bufferSize;
-            }
-        }
     }
 }

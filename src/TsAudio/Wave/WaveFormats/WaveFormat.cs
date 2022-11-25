@@ -9,8 +9,118 @@ namespace TsAudio.Wave.WaveFormats
     /// Represents a Wave file format
     /// </summary>
     [StructLayout(LayoutKind.Sequential, CharSet=CharSet.Ansi, Pack=2)]
-    public class WaveFormat
+    public class WaveFormat : IEquatable<WaveFormat>
     {
+        /// <summary>
+        /// Creates a WaveFormat with custom members
+        /// </summary>
+        /// <param name="tag">The encoding</param>
+        /// <param name="sampleRate">Sample Rate</param>
+        /// <param name="channels">Number of channels</param>
+        /// <param name="averageBytesPerSecond">Average Bytes Per Second</param>
+        /// <param name="blockAlign">Block Align</param>
+        /// <param name="bitsPerSample">Bits Per Sample</param>
+        /// <returns></returns>
+        public static WaveFormat CreateCustomFormat(WaveFormatEncoding tag, int sampleRate, int channels, int averageBytesPerSecond, int blockAlign, int bitsPerSample)
+        {
+            var waveFormat = new WaveFormat();
+            waveFormat.waveFormatTag = tag;
+            waveFormat.channels = (short)channels;
+            waveFormat.sampleRate = sampleRate;
+            waveFormat.averageBytesPerSecond = averageBytesPerSecond;
+            waveFormat.blockAlign = (short)blockAlign;
+            waveFormat.bitsPerSample = (short)bitsPerSample;
+            waveFormat.extraSize = 0;
+            return waveFormat;
+        }
+
+        /// <summary>
+        /// Creates an A-law wave format
+        /// </summary>
+        /// <param name="sampleRate">Sample Rate</param>
+        /// <param name="channels">Number of Channels</param>
+        /// <returns>Wave Format</returns>
+        public static WaveFormat CreateALawFormat(int sampleRate, int channels)
+        {
+            return CreateCustomFormat(WaveFormatEncoding.ALaw, sampleRate, channels, sampleRate * channels, channels, 8);
+        }
+
+        /// <summary>
+        /// Creates a Mu-law wave format
+        /// </summary>
+        /// <param name="sampleRate">Sample Rate</param>
+        /// <param name="channels">Number of Channels</param>
+        /// <returns>Wave Format</returns>
+        public static WaveFormat CreateMuLawFormat(int sampleRate, int channels)
+        {
+            return CreateCustomFormat(WaveFormatEncoding.MuLaw, sampleRate, channels, sampleRate * channels, channels, 8);
+        }
+
+        /// <summary>
+        /// Creates a new 32 bit IEEE floating point wave format
+        /// </summary>
+        /// <param name="sampleRate">sample rate</param>
+        /// <param name="channels">number of channels</param>
+        public static WaveFormat CreateIeeeFloatWaveFormat(int sampleRate, int channels)
+        {
+            var waveFormat = new WaveFormat();
+            waveFormat.waveFormatTag = WaveFormatEncoding.IeeeFloat;
+            waveFormat.channels = (short)channels;
+            waveFormat.bitsPerSample = 32;
+            waveFormat.sampleRate = sampleRate;
+            waveFormat.blockAlign = (short)(4 * channels);
+            waveFormat.averageBytesPerSecond = sampleRate * waveFormat.blockAlign;
+            waveFormat.extraSize = 0;
+            return waveFormat;
+        }
+
+        /// <summary>
+        /// Helper function to retrieve a WaveFormat structure from a pointer
+        /// </summary>
+        /// <param name="pointer">WaveFormat structure</param>
+        /// <returns></returns>
+        public static WaveFormat MarshalFromPtr(IntPtr pointer)
+        {
+            var waveFormat = Marshal.PtrToStructure<WaveFormat>(pointer);
+            switch(waveFormat.Encoding)
+            {
+                case WaveFormatEncoding.Pcm:
+                    // can't rely on extra size even being there for PCM so blank it to avoid reading
+                    // corrupt data
+                    waveFormat.extraSize = 0;
+                    break;
+                case WaveFormatEncoding.Extensible:
+                    waveFormat = Marshal.PtrToStructure<WaveFormatExtensible>(pointer);
+                    break;
+                case WaveFormatEncoding.Adpcm:
+                    waveFormat = Marshal.PtrToStructure<AdpcmWaveFormat>(pointer);
+                    break;
+                case WaveFormatEncoding.Gsm610:
+                    waveFormat = Marshal.PtrToStructure<Gsm610WaveFormat>(pointer);
+                    break;
+                default:
+                    if(waveFormat.ExtraSize > 0)
+                    {
+                        waveFormat = Marshal.PtrToStructure<WaveFormatExtraData>(pointer);
+                    }
+                    break;
+            }
+            return waveFormat;
+        }
+
+        /// <summary>
+        /// Helper function to marshal WaveFormat to an IntPtr
+        /// </summary>
+        /// <param name="format">WaveFormat</param>
+        /// <returns>IntPtr to WaveFormat structure (needs to be freed by callee)</returns>
+        public static IntPtr MarshalToPtr(WaveFormat format)
+        {
+            int formatSize = Marshal.SizeOf(format);
+            IntPtr formatPointer = Marshal.AllocHGlobal(formatSize);
+            Marshal.StructureToPtr(format, formatPointer, false);
+            return formatPointer;
+        }
+
         /// <summary>format type</summary>
         protected WaveFormatEncoding waveFormatTag;
         /// <summary>number of channels</summary>
@@ -83,67 +193,6 @@ namespace TsAudio.Wave.WaveFormats
         }
 
         /// <summary>
-        /// Gets the size of a wave buffer equivalent to the latency in milliseconds.
-        /// </summary>
-        /// <param name="milliseconds">The milliseconds.</param>
-        /// <returns></returns>
-        public int ConvertLatencyToByteSize(int milliseconds)
-        {
-            int bytes = (int) ((this.AverageBytesPerSecond /1000.0)*milliseconds);
-            if ((bytes% this.BlockAlign) != 0)
-            {
-                // Return the upper BlockAligned
-                bytes = bytes + this.BlockAlign - (bytes % this.BlockAlign);
-            }
-            return bytes;
-        }
-
-        /// <summary>
-        /// Creates a WaveFormat with custom members
-        /// </summary>
-        /// <param name="tag">The encoding</param>
-        /// <param name="sampleRate">Sample Rate</param>
-        /// <param name="channels">Number of channels</param>
-        /// <param name="averageBytesPerSecond">Average Bytes Per Second</param>
-        /// <param name="blockAlign">Block Align</param>
-        /// <param name="bitsPerSample">Bits Per Sample</param>
-        /// <returns></returns>
-        public static WaveFormat CreateCustomFormat(WaveFormatEncoding tag, int sampleRate, int channels, int averageBytesPerSecond, int blockAlign, int bitsPerSample)
-        {
-            var waveFormat = new WaveFormat();
-            waveFormat.waveFormatTag = tag;
-            waveFormat.channels = (short)channels;
-            waveFormat.sampleRate = sampleRate;
-            waveFormat.averageBytesPerSecond = averageBytesPerSecond;
-            waveFormat.blockAlign = (short)blockAlign;
-            waveFormat.bitsPerSample = (short)bitsPerSample;
-            waveFormat.extraSize = 0;
-            return waveFormat;
-        }
-
-        /// <summary>
-        /// Creates an A-law wave format
-        /// </summary>
-        /// <param name="sampleRate">Sample Rate</param>
-        /// <param name="channels">Number of Channels</param>
-        /// <returns>Wave Format</returns>
-        public static WaveFormat CreateALawFormat(int sampleRate, int channels)
-        {
-            return CreateCustomFormat(WaveFormatEncoding.ALaw, sampleRate, channels, sampleRate * channels, channels, 8);
-        }
-
-        /// <summary>
-        /// Creates a Mu-law wave format
-        /// </summary>
-        /// <param name="sampleRate">Sample Rate</param>
-        /// <param name="channels">Number of Channels</param>
-        /// <returns>Wave Format</returns>
-        public static WaveFormat CreateMuLawFormat(int sampleRate, int channels)
-        {
-            return CreateCustomFormat(WaveFormatEncoding.MuLaw, sampleRate, channels, sampleRate * channels, channels, 8);
-        }
-
-        /// <summary>
         /// Creates a new PCM format with the specified sample rate, bit depth and channels
         /// </summary>
         public WaveFormat(int rate, int bits, int channels)
@@ -164,68 +213,19 @@ namespace TsAudio.Wave.WaveFormats
         }
 
         /// <summary>
-        /// Creates a new 32 bit IEEE floating point wave format
+        /// Gets the size of a wave buffer equivalent to the latency in milliseconds.
         /// </summary>
-        /// <param name="sampleRate">sample rate</param>
-        /// <param name="channels">number of channels</param>
-        public static WaveFormat CreateIeeeFloatWaveFormat(int sampleRate, int channels)
-        {
-            var waveFormat = new WaveFormat();
-            waveFormat.waveFormatTag = WaveFormatEncoding.IeeeFloat;
-            waveFormat.channels = (short)channels;
-            waveFormat.bitsPerSample = 32;
-            waveFormat.sampleRate = sampleRate;
-            waveFormat.blockAlign = (short) (4*channels);
-            waveFormat.averageBytesPerSecond = sampleRate * waveFormat.blockAlign;
-            waveFormat.extraSize = 0;
-            return waveFormat;
-        }
-
-        /// <summary>
-        /// Helper function to retrieve a WaveFormat structure from a pointer
-        /// </summary>
-        /// <param name="pointer">WaveFormat structure</param>
+        /// <param name="milliseconds">The milliseconds.</param>
         /// <returns></returns>
-        public static WaveFormat MarshalFromPtr(IntPtr pointer)
+        public int ConvertLatencyToByteSize(int milliseconds)
         {
-            var waveFormat = Marshal.PtrToStructure<WaveFormat>(pointer);
-            switch (waveFormat.Encoding)
+            int bytes = (int)((this.AverageBytesPerSecond / 1000.0) * milliseconds);
+            if((bytes % this.BlockAlign) != 0)
             {
-                case WaveFormatEncoding.Pcm:
-                    // can't rely on extra size even being there for PCM so blank it to avoid reading
-                    // corrupt data
-                    waveFormat.extraSize = 0;
-                    break;
-                case WaveFormatEncoding.Extensible:
-                    waveFormat = Marshal.PtrToStructure<WaveFormatExtensible>(pointer);
-                    break;
-                case WaveFormatEncoding.Adpcm:
-                    waveFormat = Marshal.PtrToStructure<AdpcmWaveFormat>(pointer);
-                    break;
-                case WaveFormatEncoding.Gsm610:
-                    waveFormat = Marshal.PtrToStructure<Gsm610WaveFormat>(pointer);
-                    break;
-                default:
-                    if (waveFormat.ExtraSize > 0)
-                    {
-                        waveFormat = Marshal.PtrToStructure<WaveFormatExtraData>(pointer);
-                    }
-                    break;
+                // Return the upper BlockAligned
+                bytes = bytes + this.BlockAlign - (bytes % this.BlockAlign);
             }
-            return waveFormat;
-        }
-
-        /// <summary>
-        /// Helper function to marshal WaveFormat to an IntPtr
-        /// </summary>
-        /// <param name="format">WaveFormat</param>
-        /// <returns>IntPtr to WaveFormat structure (needs to be freed by callee)</returns>
-        public static IntPtr MarshalToPtr(WaveFormat format)
-        {
-            int formatSize = Marshal.SizeOf(format);
-            IntPtr formatPointer = Marshal.AllocHGlobal(formatSize);
-            Marshal.StructureToPtr(format, formatPointer, false);
-            return formatPointer;
+            return bytes;
         }
 
         /// <summary>
@@ -254,17 +254,27 @@ namespace TsAudio.Wave.WaveFormats
         /// <returns>True if the objects are the same</returns>
         public override bool Equals(object obj)
         {
-            var other = obj as WaveFormat;
-            if(other != null)
+            return Equals(obj as WaveFormat);
+        }
+
+        /// <summary>
+        /// Compares with another WaveFormat object
+        /// </summary>
+        /// <param name="other">Object to compare to</param>
+        /// <returns>True if the objects are the same</returns>
+        public bool Equals(WaveFormat other)
+        {
+            if (other is null)
             {
-                return this.waveFormatTag == other.waveFormatTag &&
-                    this.channels == other.channels &&
-                    this.sampleRate == other.sampleRate &&
-                    this.averageBytesPerSecond == other.averageBytesPerSecond &&
-                    this.blockAlign == other.blockAlign &&
-                    this.bitsPerSample == other.bitsPerSample;
+                return false;
             }
-            return false;
+
+            return this.waveFormatTag == other.waveFormatTag &&
+                this.channels == other.channels &&
+                this.sampleRate == other.sampleRate &&
+                this.averageBytesPerSecond == other.averageBytesPerSecond &&
+                this.blockAlign == other.blockAlign &&
+                this.bitsPerSample == other.bitsPerSample;
         }
 
         /// <summary>
@@ -280,7 +290,5 @@ namespace TsAudio.Wave.WaveFormats
                 (int)this.blockAlign ^ 
                 (int)this.bitsPerSample;
         }
-
-
     }
 }
