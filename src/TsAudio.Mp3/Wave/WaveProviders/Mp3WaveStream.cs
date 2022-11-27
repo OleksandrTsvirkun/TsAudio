@@ -61,13 +61,13 @@ public class Mp3WaveStream : WaveStream
 
     public Mp3WaveFormat Mp3WaveFormat { get; }
 
-    internal Mp3WaveStream(Stream reader, IMp3FrameFactory frameFactory, Mp3WaveFormat mp3WaveFormat, IReadOnlyList<Mp3Index> indices, long sampleCount, Task loading, CancellationToken cancellationToken = default)
+    internal Mp3WaveStream(Stream reader, IMp3FrameFactory frameFactory, Mp3WaveFormat mp3WaveFormat, IReadOnlyList<Mp3Index> indices, long length, Task loading, CancellationToken cancellationToken = default)
     {
         this.reader = reader;
         this.frameFactory = frameFactory;
         this.indices = indices;
         this.Mp3WaveFormat = mp3WaveFormat;
-        this.Length = sampleCount;
+        this.Length = length;
         this.decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
         this.WaveFormat = this.decompressor.WaveFormat;
         this.waveProvider = new BufferedWaveProvider(this.WaveFormat, ushort.MaxValue*4);

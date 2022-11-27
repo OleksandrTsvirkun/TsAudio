@@ -12,7 +12,7 @@ namespace TsAudio.Wave.WaveStreams
 
         long SampleCount { get; }
 
-        WaveStreamMetadata Metadata { get; }
+        long Length { get; }
 
         ValueTask<IWaveStream> GetWaveProviderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default);
 

@@ -18,23 +18,13 @@ namespace TsAudio.Wave.WaveProviders;
 
 public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 {
-    public static async ValueTask<Mp3AsyncWaveStreamFactory> FromStreamAsync(Stream stream, WaveStreamMetadata metadata, int bufferSize = 4096, CancellationToken cancellationToken = default)
+    public static async ValueTask<Mp3AsyncWaveStreamFactory> FromStreamAsync(Stream stream, long length, int bufferSize = 4096, CancellationToken cancellationToken = default)
     {
-        if (metadata is null)
-        {
-            throw new ArgumentNullException(nameof(metadata));
-        }
-
-        if (stream is FileStream fileStream)
-        {
-            metadata.StreamLength = fileStream.Length;
-        }
-
         CacheStream cacheStream = stream as CacheStream;
 
         if(cacheStream is null)
         {
-            cacheStream = new CacheStream(metadata.StreamLength);
+            cacheStream = new CacheStream(length);
 
             var loading = Task.Run(async () =>
             {
@@ -63,20 +53,8 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 
         var instance = new Mp3AsyncWaveStreamFactory();
         instance.cacheStream = cacheStream;
-        var mode = metadata.TotalSamples is 0 ? ReaderMode.Kick : ReaderMode.Wait;
-
-        instance.reader = cacheStream.GetReader(mode);
 
         await instance.InitAsync(cancellationToken);
-
-        if(metadata.TotalSamples is 0)
-        {
-            await instance.Loading;
-
-            metadata.TotalSamples = instance.SampleCount;
-        }
-
-        instance.Metadata = metadata;
 
         return instance;
     }
@@ -104,24 +82,24 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
         }
     }
 
-    public WaveStreamMetadata Metadata { get; private set; }
+    public long Length { get; private set; }
 
     private Mp3AsyncWaveStreamFactory()
     {
         this.frameFactory = Mp3FrameFactory.Instance;
     }
 
-    public Mp3AsyncWaveStreamFactory(CacheStream stream, WaveStreamMetadata metadata) : this()
+    public Mp3AsyncWaveStreamFactory(CacheStream stream) : this()
     {
         this.cacheStream = stream;
         this.reader = stream.GetReader();
-        this.Metadata = metadata;
+        this.Length = stream.Length;
     }
 
     public ValueTask<IWaveStream> GetWaveProviderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
     {
         var reader = this.cacheStream.GetReader(mode);
-        var waveProvider = new Mp3WaveStream(reader, this.frameFactory, this.Mp3WaveFormat, this.indices, this.Metadata.TotalSamples, this.Loading, cancellationToken);
+        var waveProvider = new Mp3WaveStream(reader, this.frameFactory, this.Mp3WaveFormat, this.indices, this.Length, this.Loading, cancellationToken);
         this.waveStreams.Add(waveProvider);
         return new ValueTask<IWaveStream>(waveProvider);
     }
