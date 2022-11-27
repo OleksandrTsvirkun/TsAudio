@@ -15,8 +15,8 @@ public class CacheStream : Stream
     private readonly MemoryMappedViewStream writer;
     private long advance;
     private bool disposed;
-    private readonly ManualResetEvent writeAwaiter = new ManualResetEvent(true);
-    private readonly ManualResetEvent readAwaiter = new ManualResetEvent(false);
+    private readonly ManualResetEventSlim writeAwaiter = new(true);
+    private readonly ManualResetEventSlim readAwaiter = new(false);
     private readonly IList<WeakReference<Reader>> readers = new List<WeakReference<Reader>>();
 
     public long Advance => this.advance;
@@ -156,11 +156,6 @@ public class CacheStream : Stream
             var read = 0;
             do
             {
-                using var registration = cancellationToken.Register(() =>
-                {
-                    this.parent.readAwaiter.Set();
-                });
-
                 var readBlock = await this.OneReadAsync(buffer, cancellationToken);
 
                 if (readBlock == 0 && this.parent.WritingIsDone)
@@ -174,8 +169,7 @@ public class CacheStream : Stream
                 if(buffer.Length > 0 && this.parent.Position < this.parent.Length)
                 {
                     this.parent.readAwaiter.Reset();
-                    this.parent.readAwaiter.WaitOne();
-                    cancellationToken.ThrowIfCancellationRequested();
+                    this.parent.readAwaiter.Wait(cancellationToken);
                 }
                 else if(buffer.Length > 0)
                 {
@@ -294,14 +288,7 @@ public class CacheStream : Stream
     {
         this.ThrowIdDisposed();
 
-        using var registration = cancellationToken.Register(() =>
-        {
-            this.writeAwaiter.Set();
-        });
-
-        this.writeAwaiter.WaitOne();
-
-        cancellationToken.ThrowIfCancellationRequested();
+        this.writeAwaiter.Wait(cancellationToken);
 
         var toCopy = (int)Math.Min(buffer.Length, this.Length - this.Position);
 
@@ -317,11 +304,8 @@ public class CacheStream : Stream
         if(this.Position - this.advance > this.PauseWriterThreshold)
         {
             this.writeAwaiter.Reset();
-            this.writeAwaiter.WaitOne();
-            cancellationToken.ThrowIfCancellationRequested();
+            this.writeAwaiter.Wait(cancellationToken);
         }
-
-
     }
 
     public override void Write(byte[] buffer, int offset, int count)
