@@ -304,7 +304,6 @@ public class CacheStream : Stream
         if(this.Position - this.advance > this.PauseWriterThreshold)
         {
             this.writeAwaiter.Reset();
-            this.writeAwaiter.Wait(cancellationToken);
         }
     }
 
