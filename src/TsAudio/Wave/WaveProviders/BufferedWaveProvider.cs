@@ -1,8 +1,11 @@
-﻿using System;
+﻿using DotNext.Threading;
+
+using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
+using TsAudio.Utils;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveProviders
@@ -14,14 +17,14 @@ namespace TsAudio.Wave.WaveProviders
     /// </summary>
     public class BufferedWaveProvider : IWaveProvider
     {
-        protected readonly object locker = new object();
+        protected readonly object locker = new();
+        protected readonly ManualResetEventSlim asyncReadEvent = new(false);
+        protected readonly ManualResetEventSlim asyncWriteEvent = new(true);
 
         protected IMemoryOwner<byte> memoryOwner;
 
         protected volatile int writePosition;
         protected volatile int readPosition;
-        protected volatile bool waitForRead;
-        protected volatile bool waitForWrite;
 
         protected int writeGate;
         protected bool isEmpty;
@@ -57,36 +60,17 @@ namespace TsAudio.Wave.WaveProviders
         public ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
         {
             var read = 0;
-
-            using var registration = cancellationToken.Register(() =>
+            var memory = this.memoryOwner.Memory;
+            while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
             {
-                lock(locker)
-                {
-                    Monitor.PulseAll(locker);
-                }
-            });
-
-
-            while(buffer.Length > 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
                 if(this.Count == 0 && this.isFlushed)
                 {
                     break;
                 }
                 else if(this.Count == 0 && this.AllowWait)
                 {
-                    this.waitForRead = true;
-                    lock(locker)
-                    {
-                        if(this.waitForWrite)
-                        {
-                            Monitor.Pulse(locker);
-                        }
-
-                        Monitor.Wait(locker);
-                    }
+                    this.asyncReadEvent.Reset();
+                    this.asyncReadEvent.Wait(cancellationToken);
                     continue;
                 }
                 else if(this.Count == 0 && !this.AllowWait)
@@ -95,18 +79,21 @@ namespace TsAudio.Wave.WaveProviders
                 }
 
                 var writePosition = this.writePosition;
+                var readPosition = this.readPosition;
 
-                var canRead = writePosition > this.readPosition
-                                        ? writePosition - this.readPosition
-                                        : this.memoryOwner.Memory.Length - this.readPosition;
+                var canRead = writePosition > readPosition
+                                    ? writePosition - readPosition
+                                    : memory.Length - readPosition;
 
                 var toCopy = Math.Min(canRead, buffer.Length);
 
-                var data = this.memoryOwner.Memory.Slice(this.readPosition, toCopy);
+
+                var data = memory.Slice(readPosition, toCopy);
 
                 data.CopyTo(buffer);
 
                 read += toCopy;
+
                 this.readPosition += toCopy;
                 this.readPosition %= this.memoryOwner.Memory.Length;
 
@@ -115,109 +102,78 @@ namespace TsAudio.Wave.WaveProviders
                     this.isEmpty = true;
                 }
 
-                this.waitForRead = false;
-
-                if(this.waitForWrite && this.Length - this.Count >= this.WriteGate)
+                if(this.Length - this.Count >= this.WriteGate)
                 {
-                    lock(locker)
-                    {
-                        Monitor.Pulse(locker);
-                    }
+                    this.asyncWriteEvent.Set();
                 }
+
                 buffer = buffer.Slice(toCopy);
             }
             return new ValueTask<int>(read);
         }
 
-    public ValueTask FlushAsync(CancellationToken cancellationToken = default)
-    {
-        lock(locker)
+        public ValueTask FlushAsync(CancellationToken cancellationToken = default)
         {
             this.isFlushed = true;
-            return new ValueTask();
+            return default;
         }
-    }
 
-    public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
-    {
-        using var registration = cancellationToken.Register(() =>
+        public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
         {
-            lock(locker)
+            var memory = this.memoryOwner.Memory;
+            while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
             {
-                Monitor.PulseAll(locker);
-            }
-        });
-
-
-            while(buffer.Length > 0)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-
-                if(this.Count >= this.memoryOwner.Memory.Length)
+                if(this.Count >= memory.Length)
                 {
+                    this.asyncWriteEvent.Reset();
 
-                    lock(locker)
-                    {
-                        this.waitForWrite = true;
+                    this.asyncWriteEvent.Wait(cancellationToken);
 
-                        if(this.waitForRead)
-                        {
-                            Monitor.Pulse(locker);
-                        }
-
-                        Monitor.Wait(locker);
-                    }
-   
                     continue;
                 }
 
-                var canWrite = this.isEmpty ? this.memoryOwner.Memory.Length - this.writePosition
-                                       : this.writePosition > readPosition
-                                            ? this.memoryOwner.Memory.Length - writePosition
-                                            : this.readPosition - writePosition;
+                var writePosition = this.writePosition;
+                var readPosition = this.readPosition;
+
+                var canWrite = this.isEmpty ? memory.Length - writePosition
+                                       : writePosition > readPosition
+                                            ? memory.Length - writePosition
+                                            : readPosition - writePosition;
 
                 var toCopy = Math.Min(canWrite, buffer.Length);
 
-                var data = this.memoryOwner.Memory.Slice(this.writePosition, toCopy);
+                var data = memory.Slice(writePosition, toCopy);
 
                 buffer.Slice(0, toCopy).CopyTo(data);
 
                 this.writePosition += toCopy;
-                this.writePosition %= this.memoryOwner.Memory.Length;
+                this.writePosition %= memory.Length;
 
                 if(toCopy > 0)
                 {
                     this.isEmpty = false;
                 }
 
-                this.waitForWrite = false;
+                this.asyncReadEvent.Set();
 
-                if(waitForRead)
-                {
-                    lock(locker)
-                    {
-                        Monitor.Pulse(locker);
-                    }
-                }
                 buffer = buffer.Slice(toCopy);
             }
 
-        return default;
-    }
+            return default;
+        }
 
-    public void Clear()
-    {
-        lock(locker)
+        public void Clear()
         {
-            this.isFlushed = false;
-            this.writePosition = 0;
-            this.readPosition = 0;
-            this.memoryOwner.Memory.Span.Clear();
-            this.isEmpty = true;
-            this.waitForWrite = false;
-            this.waitForWrite = false;
-            Monitor.PulseAll(locker);
+            lock(locker)
+            {
+                this.isFlushed = false;
+                this.writePosition = 0;
+                this.readPosition = 0;
+                this.memoryOwner.Memory.Span.Clear();
+                this.isEmpty = true;
+                this.asyncReadEvent.Reset();
+                this.asyncWriteEvent.Set();
+            }
         }
     }
-}
 }
