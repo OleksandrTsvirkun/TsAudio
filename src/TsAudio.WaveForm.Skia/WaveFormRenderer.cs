@@ -91,7 +91,7 @@ namespace TsAudio.WaveForm.Skia
                 finally
                 {
                     updater?.Invoke();
-                    peakProvider.Dispose();
+                    await peakProvider?.DisposeAsync();
                 }
             });
         }
