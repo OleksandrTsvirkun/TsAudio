@@ -1,11 +1,8 @@
 ﻿using Collections.Pooled;
 
 using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -16,82 +13,36 @@ using TsAudio.Wave.WaveStreams;
 
 namespace TsAudio.Wave.WaveProviders;
 
+internal class Mp3WaveStreamArgs
+{
+    public IMp3FrameFactory FrameFactory { get; init; }
+
+    public IReadOnlyList<Mp3Index> Indices { get; init; }
+
+    public WaveStreamMetadata Metadata { get; init; }
+
+    public Task Parsing { get; init; }
+
+    public Mp3WaveFormat Mp3WaveFormat { get; init; }
+
+    public BufferedStreamManagerReader Reader { get; init; }
+
+    public ManualResetEventSlim ParseWait { get; init; }
+}
+
+
 public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 {
-    public static async ValueTask<Mp3AsyncWaveStreamFactory> FromStreamAsync(Stream stream, WaveStreamMetadata metadata, int bufferSize = 4096, CancellationToken cancellationToken = default)
-    {
-        if (metadata is null)
-        {
-            throw new ArgumentNullException(nameof(metadata));
-        }
-
-        if (stream is FileStream fileStream)
-        {
-            metadata.StreamLength = fileStream.Length;
-        }
-
-        CacheStream cacheStream = stream as CacheStream;
-
-        if(cacheStream is null)
-        {
-            cacheStream = new CacheStream(metadata.StreamLength);
-
-            var loading = Task.Run(async () =>
-            {
-                var buffer = ArrayPool<byte>.Shared.Rent(bufferSize);
-
-                try
-                {
-                    while(true)
-                    {
-                        var read = await stream.ReadAsync(buffer, cancellationToken);
-
-                        await cacheStream.WriteAsync(buffer.AsMemory(0, read), cancellationToken);
-                    }
-                }
-                catch(Exception)
-                {
-
-                }
-                finally
-                {
-                    await cacheStream.FlushAsync(cancellationToken);
-                    ArrayPool<byte>.Shared.Return(buffer);
-                }
-            });
-        }
-
-        var instance = new Mp3AsyncWaveStreamFactory();
-        instance.cacheStream = cacheStream;
-        var mode = metadata.TotalSamples is 0 ? ReaderMode.Kick : ReaderMode.Wait;
-
-        instance.reader = cacheStream.GetReader(mode);
-
-        await instance.InitAsync(cancellationToken);
-
-        if(metadata.TotalSamples is 0)
-        {
-            await instance.Loading;
-
-            metadata.TotalSamples = instance.SampleCount;
-        }
-
-        instance.Metadata = metadata;
-
-        return instance;
-    }
-
-    protected CacheStream cacheStream;
-    protected CacheStream.Reader reader;
+    protected readonly BufferedStreamManager bufferedStreamManager;
     protected readonly IMp3FrameFactory frameFactory;
-    protected readonly PooledList<Mp3Index> indices = new();
-    protected readonly ConcurrentBag<Mp3WaveStream> waveStreams = new();
+    protected readonly PooledList<Mp3Index> indices;
+    protected readonly ConcurrentBag<Mp3WaveStream> waveStreams;
+    protected readonly ManualResetEventSlim consumeWaiter;
+    protected BufferedStreamManagerReader? reader;
+    protected CancellationTokenSource? cts;
+    protected IAsyncEnumerator<(Mp3Index Index, Mp3Frame Frame)>? framesEnumerator;
 
-    private CancellationTokenSource cts;
-
-    private IAsyncEnumerator<(Mp3Index Index, Mp3Frame Frame)> framesEnumerator;
-
-    public Task Loading { get; private set; }
+    public Task Parsing { get; private set; }
 
     public Mp3WaveFormat Mp3WaveFormat { get; private set; }
 
@@ -106,31 +57,26 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 
     public WaveStreamMetadata Metadata { get; private set; }
 
-    private Mp3AsyncWaveStreamFactory()
+    public Mp3AsyncWaveStreamFactory(BufferedStreamManager bufferedStreamManager, WaveStreamMetadata metadata)
     {
         this.frameFactory = Mp3FrameFactory.Instance;
-    }
-
-    public Mp3AsyncWaveStreamFactory(CacheStream stream, WaveStreamMetadata metadata) : this()
-    {
-        this.cacheStream = stream;
-        this.reader = stream.GetReader();
+        this.bufferedStreamManager = bufferedStreamManager;
         this.Metadata = metadata;
+        this.indices = new();
+        this.waveStreams = new();
+        this.consumeWaiter = new();
+        this.reader = null;
+        this.cts = null;
+        this.framesEnumerator = null;
     }
 
-    public ValueTask<IWaveStream> GetWaveProviderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
-    {
-        var reader = this.cacheStream.GetReader(mode);
-        var waveProvider = new Mp3WaveStream(reader, this.frameFactory, this.Mp3WaveFormat, this.indices, this.Metadata.TotalSamples, this.Loading, cancellationToken);
-        this.waveStreams.Add(waveProvider);
-        return new ValueTask<IWaveStream>(waveProvider);
-    }
-
-    public async ValueTask InitAsync(CancellationToken cancellationTokenExternal = default)
+    public async Task InitAsync(CancellationToken cancellationTokenExternal = default)
     {
         this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
 
         var cancellationToken = this.cts.Token;
+
+        this.reader = await this.bufferedStreamManager.GetBufferedStreamManagerReaderAsync(cancellationToken: cancellationToken);
 
         this.framesEnumerator = this.frameFactory.LoadFrameHeadersAsync(this.reader, cancellationToken).GetAsyncEnumerator(cancellationToken);
 
@@ -155,13 +101,13 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
         var firstFrame = firstFrameDescriptor.Frame;
         var secondFrame = secondFrameDescriptor.Frame;
 
-        if (firstFrame.SampleRate != secondFrame.SampleRate
+        if(firstFrame.SampleRate != secondFrame.SampleRate
             || firstFrame.ChannelMode != secondFrame.ChannelMode)
         {
             firstFrameDescriptor = secondFrameDescriptor;
         }
 
-        if (!firstFrameDescriptor.Equals(secondFrameDescriptor))
+        if(!firstFrameDescriptor.Equals(secondFrameDescriptor))
         {
             this.indices.Add(firstFrameDescriptor.Index);
         }
@@ -175,42 +121,58 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
                                                 frame.FrameLength,
                                                 frame.BitRate);
 
-        this.Loading = LoadAsync(cancellationToken);
+        this.Parsing = this.ParseAsync(cancellationToken);
     }
 
-    private async Task<Task> LoadAsync(CancellationToken cancellationToken = default)
+    public async ValueTask<IWaveStream> GetWaveProviderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
     {
-        return await Task.Factory.StartNew(async () =>
+        var reader = await this.bufferedStreamManager.GetBufferedStreamManagerReaderAsync(mode, cancellationToken);
+
+        var args = new Mp3WaveStreamArgs()
+        {
+            ParseWait = this.consumeWaiter,
+            FrameFactory = this.frameFactory,
+            Indices = this.indices,
+            Metadata = this.Metadata,
+            Mp3WaveFormat = this.Mp3WaveFormat,
+            Parsing = this.Parsing,
+            Reader = reader,
+        };
+        var waveProvider = new Mp3WaveStream(args);
+
+        this.waveStreams.Add(waveProvider);
+        return waveProvider;
+    }
+
+    private Task ParseAsync(CancellationToken cancellationToken = default)
+    {
+        return Task.Run(async () =>
         {
             try
             {
                 await foreach(var (index, frame) in this.frameFactory.LoadFrameHeadersAsync(this.reader, cancellationToken))
                 {
                     this.indices.Add(index);
-
-                    foreach(var reader in this.waveStreams)
-                    {
-                        reader.KickWaiter();
-                    }
+                    this.consumeWaiter.Set();
                 }
 
                 foreach(var reader in this.waveStreams)
                 {
-                    reader.KickWaiter();
+                    this.consumeWaiter.Set();
                 }
             }
             catch(OperationCanceledException)
             {
 
             }
-        }, cancellationToken, TaskCreationOptions.RunContinuationsAsynchronously | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
+        }, cancellationToken);
     }
 
     public void Dispose()
     {
-        if (!this.cts?.IsCancellationRequested ?? false)
+        if(!this.cts?.IsCancellationRequested ?? false)
         {
-            this.cts.Cancel();
+            this.cts?.Cancel();
         }
 
         this.cts?.Dispose();
