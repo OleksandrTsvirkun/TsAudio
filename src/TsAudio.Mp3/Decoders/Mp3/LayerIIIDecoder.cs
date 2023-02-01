@@ -612,7 +612,7 @@ namespace TsAudio.Decoders.Mp3
 
                     // inverse polyphase
                     var chanBuf = ch == 0 ? leftBuf : rightBuf;
-                    InversePolyphase(buf, ch, offset, chanBuf);
+                    InversePolyphase(buf, ch, offset, in chanBuf);
                 }
 
                 offset += SBLIMIT * SSLIMIT;
@@ -1942,7 +1942,7 @@ namespace TsAudio.Decoders.Mp3
         #endregion
 
         // Layer III interleaves the samples, so we have to make them linear again
-        void InversePolyphase(Span<float> buf, int ch, int ofs, Span<float> outBuf)
+        void InversePolyphase(in Span<float> buf, int ch, int ofs, in Span<float> outBuf)
         {
             for (int ss = 0; ss < SSLIMIT; ss++, ofs += SBLIMIT)
             {

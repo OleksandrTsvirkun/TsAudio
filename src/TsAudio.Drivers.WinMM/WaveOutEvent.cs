@@ -7,8 +7,6 @@ using TsAudio.Wave.WaveFormats;
 using System.Runtime.InteropServices;
 using TsAudio.Wave.WaveProviders;
 using System.Threading.Tasks;
-using System.Reactive.Subjects;
-using TsAudio.Utils;
 
 namespace TsAudio.Drivers.WinMM
 {
@@ -269,7 +267,7 @@ namespace TsAudio.Drivers.WinMM
                     if(queued == 0)
                     {
                         this.PlaybackState = PlaybackState.Stopped;
-                        this.callbackEvent.Set();
+                        this.callbackEvent?.Set();
                     }
                 }
             }

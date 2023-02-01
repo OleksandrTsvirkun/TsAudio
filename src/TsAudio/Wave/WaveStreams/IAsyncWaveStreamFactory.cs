@@ -8,7 +8,7 @@ namespace TsAudio.Wave.WaveStreams
 {
     public interface IAsyncWaveStreamFactory : IDisposable
     {
-        Task Loading { get; }
+        Task Parsing { get; }
 
         long SampleCount { get; }
 
@@ -16,6 +16,6 @@ namespace TsAudio.Wave.WaveStreams
 
         ValueTask<IWaveStream> GetWaveProviderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default);
 
-        ValueTask InitAsync(CancellationToken cancellationToken = default);
+        Task InitAsync(CancellationToken cancellationToken = default);
     }
 }

@@ -183,7 +183,7 @@ namespace TsAudio.Decoders.Mp3
             bufferOffset.Clear();
         }
 
-        protected void InversePolyPhase(int channel, Span<float> data)
+        protected void InversePolyPhase(int channel, in Span<float> data)
         {
             Span<float> ippuv = stackalloc float[512];
             Span<float> synBuf;
@@ -200,11 +200,11 @@ namespace TsAudio.Decoders.Mp3
                 }
             }
 
-            this.DCT32(data, synBuf, k);
+            this.DCT32(in data, in synBuf, k);
 
-            this.BuildUVec(ippuv, synBuf, k);
+            this.BuildUVec(in ippuv, in synBuf, k);
 
-            this.DewindowOutput(ippuv, data);
+            this.DewindowOutput(in ippuv, in data);
         }
 
         private void GetBufAndOffset(int channel, out Span<float> synBuf, out int k)
@@ -226,7 +226,7 @@ namespace TsAudio.Decoders.Mp3
             this.bufferOffset[channel] = k;
         }
 
-        private void DCT32(Span<float> _in, Span<float> _out, int k)
+        private void DCT32(in Span<float> _in, in Span<float> _out, int k)
         {
             int i;
             Span<float> ei32 = stackalloc float[16];
@@ -253,7 +253,7 @@ namespace TsAudio.Decoders.Mp3
         }
 
 
-        private void DCT16(Span<float> _in, Span<float> _out)
+        private void DCT16(in Span<float> _in, in Span<float> _out)
         {
             Span<float> ei16 = stackalloc float[8];
             Span<float> eo16 = stackalloc float[8];
@@ -283,7 +283,7 @@ namespace TsAudio.Decoders.Mp3
             _out[15] = oo16[7];
         }
 
-        private void DCT8(Span<float> _in, Span<float> _out)
+        private void DCT8(in Span<float> _in, in Span<float> _out)
         {
             Span<float> ei8 = stackalloc float[4];
             Span<float> tmp8 = stackalloc float[6];
@@ -331,7 +331,7 @@ namespace TsAudio.Decoders.Mp3
             _out[7] = oo8[3];
         }
 
-        private void BuildUVec(Span<float> u_vec, Span<float> cur_synbuf, int k)
+        private void BuildUVec(in Span<float> u_vec, in Span<float> cur_synbuf, int k)
         {
             int i, j, uvp = 0;
 
@@ -361,7 +361,7 @@ namespace TsAudio.Decoders.Mp3
             }
         }
 
-        private void DewindowOutput(Span<float> u_vec, Span<float> samples)
+        private void DewindowOutput(in Span<float> u_vec, in Span<float> samples)
         {
             for (int i = 0; i < 512; i++)
             {
