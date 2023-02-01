@@ -5,15 +5,12 @@ using TsAudio.Sample.SampleProviders;
 using System.Threading;
 using SkiaSharp;
 using TsAudio.Wave.WaveForm;
-using TsAudio.Utils;
 
 namespace TsAudio.WaveForm.Skia
 {
     public class SkiaWaveFormRenderer
     {
-        private static TaskScheduler scheduler = new SingleThreadTaskScheduler();
-
-        private CancellationTokenSource cts;
+        private CancellationTokenSource? cts;
 
         public SkiaWaveFormRendererSettings Settings { get; }
 
@@ -36,23 +33,22 @@ namespace TsAudio.WaveForm.Skia
 
         public Task RenderWaveFormAsync(SKCanvas canvas, Action updater = null, CancellationToken cancellationTokenExternal = default)
         {
-            this.cts?.Cancel();
-            this.cts?.Dispose();
-            this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
-            var cancellationToken = this.cts.Token;
-
-            var width = this.Settings.Width;
-            var height = this.Settings.Height;
-            var metadata = this.WaveFormRendererData.Metadata;
-            var waveStream = this.WaveFormRendererData.WaveStream;
-            var peakProvider = this.WaveFormRendererData.PeakProvider;
-
-            var sampleProvider = new SampleProvider(waveStream);
-
-            var midPoint = height / 2;
-
-            return Task.Factory.StartNew(async () =>
+            return Task.Run(async () =>
             {
+                this.Cancel();
+                this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
+                var cancellationToken = this.cts.Token;
+
+                var width = this.Settings.Width;
+                var height = this.Settings.Height;
+                var metadata = this.WaveFormRendererData.Metadata;
+                var waveStream = this.WaveFormRendererData.WaveStream;
+                var peakProvider = this.WaveFormRendererData.PeakProvider;
+
+                var sampleProvider = new SampleProvider(waveStream);
+
+                var midPoint = height / 2;
+
                 try
                 {
                     var samplesPerPixel = (int)((metadata.TotalSamples * waveStream.WaveFormat.Channels) / width) * (this.Settings.PixelsPerPeak + this.Settings.SpacerPixels);
@@ -84,16 +80,20 @@ namespace TsAudio.WaveForm.Skia
                         updater?.Invoke();
                     }
                 }
+                catch(OperationCanceledException)
+                {
+
+                }
                 catch(Exception ex)
                 {
-                    canvas.Clear(); 
+                    //canvas.Clear();
                 }
                 finally
                 {
                     updater?.Invoke();
-                    await peakProvider.DisposeAsync();
+                    peakProvider.Dispose();
                 }
-            }, cancellationToken, TaskCreationOptions.LongRunning, scheduler);
+            });
         }
     }
 }
