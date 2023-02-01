@@ -1,11 +1,8 @@
-﻿using DotNext.Threading;
-
-using System;
+﻿using System;
 using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
-using TsAudio.Utils;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveProviders
