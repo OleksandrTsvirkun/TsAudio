@@ -124,6 +124,7 @@ public class BufferedStreamManager
             ReadAwaiter = this.readAwaiter,
             SetAdvance = (value) => this.Advance = value,
             GetWritingIsDone = () => this.WritingIsDone,
+            GetBuffered = () => this.Buffered,
             Reader = this.memoryMapped.CreateViewStream(0, this.Capacity, MemoryMappedFileAccess.Read)
         };
         var reader = new BufferedStreamManagerReader(args, mode);
