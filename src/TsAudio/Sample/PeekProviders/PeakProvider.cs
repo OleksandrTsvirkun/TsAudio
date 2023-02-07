@@ -36,10 +36,9 @@ namespace TsAudio.Sample.PeekProviders
 
         public abstract ValueTask<bool> MoveNextAsync();
 
-        public ValueTask DisposeAsync()
+        public void Dispose()
         {
             this.BufferOwner.Dispose();
-            return default;
         }
     }
 }

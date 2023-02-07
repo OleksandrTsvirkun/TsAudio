@@ -33,7 +33,7 @@ public class SkiaWaveFormRenderer
 
     public Task RenderWaveFormAsync(SKCanvas canvas, Action updater = null, CancellationToken cancellationTokenExternal = default)
     {
-        return Task.Run(async () =>
+        return Task.Factory.StartNew(async () =>
         {
             this.Cancel();
             this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
@@ -91,8 +91,8 @@ public class SkiaWaveFormRenderer
             finally
             {
                 updater?.Invoke();
-                await peakProvider.DisposeAsync();
+                peakProvider.Dispose();
             }
-        });
+        }, cancellationTokenExternal, TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 }
