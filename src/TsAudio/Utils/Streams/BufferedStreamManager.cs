@@ -17,12 +17,12 @@ public class BufferedStreamManager
     private readonly ConcurrentBag<WeakReference<BufferedStreamManagerReader>> readers = new ConcurrentBag<WeakReference<BufferedStreamManagerReader>>();
 
     private long advance;
-    public long Advance 
+    public long Advance
     {
         get => this.advance;
         set
         {
-            if (value > this.advance)
+            if(value > this.advance)
             {
                 this.advance = value;
 
@@ -34,13 +34,34 @@ public class BufferedStreamManager
         }
     }
 
-    public bool WritingIsDone => this.writer.Position >= this.writer.Length;
+    public bool WritingIsDone => this.buffered >= this.capacity;
 
-    public long Capacity => this.writer.Length;
+    private long capacity;
+    public long Capacity => this.capacity;
 
-    public long Buffered => this.writer.Position;
+    private long buffered;
+    public long Buffered => this.buffered;
+
+    public bool CanWrite { get; }
 
     public BufferingOptions BufferingOptions { get; }
+
+    public BufferedStreamManager(FileStream fileStream, string name = null)
+    {
+        this.CanWrite = false;
+
+        this.capacity = fileStream.Length;
+        this.advance = fileStream.Length;
+        this.buffered = fileStream.Length;
+
+        this.memoryMapped = MemoryMappedFile.CreateFromFile(fileStream, name, this.capacity, MemoryMappedFileAccess.Read, HandleInheritability.None, true);
+
+        this.BufferingOptions = new BufferingOptions()
+        {
+            PauseWriterThreshold = int.MaxValue,
+            ResumeWriterThreshold = 0
+        };
+    }
 
     public BufferedStreamManager(long capcity, BufferingOptions bufferingOptions = null) : this(null, capcity, bufferingOptions)
     {
@@ -49,9 +70,11 @@ public class BufferedStreamManager
 
     public BufferedStreamManager(string name, long capacity, BufferingOptions bufferingOptions = null)
     {
-        this.memoryMapped = MemoryMappedFile.CreateNew(name, capacity);
-        this.writer = this.memoryMapped.CreateViewStream(0, capacity, MemoryMappedFileAccess.Write);
-        this.BufferingOptions = bufferingOptions ?? new BufferingOptions() 
+        this.CanWrite = true;
+        this.capacity = capacity;
+        this.memoryMapped = MemoryMappedFile.CreateNew(name, this.capacity);
+        this.writer = this.memoryMapped.CreateViewStream(0, this.capacity, MemoryMappedFileAccess.Write);
+        this.BufferingOptions = bufferingOptions ?? new BufferingOptions()
         {
             PauseWriterThreshold = 4096 * 4 * 16 * 4,
             ResumeWriterThreshold = 4096 * 4 * 4
@@ -97,9 +120,14 @@ public class BufferedStreamManager
 
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
+        if(!this.CanWrite)
+        {
+            throw new NotSupportedException();
+        }
+
         this.writeAwaiter.Wait(cancellationToken);
 
-        var toCopy = (int)Math.Min(buffer.Length, this.Capacity - this.Buffered);
+        var toCopy = (int)Math.Min(buffer.Length, this.capacity - this.buffered);
 
         if(toCopy == 0)
         {
@@ -107,17 +135,18 @@ public class BufferedStreamManager
         }
 
         await this.writer.WriteAsync(buffer, cancellationToken);
+        this.buffered = this.writer.Position;
 
         this.readAwaiter.Set();
 
-        if(this.Buffered - this.advance > this.BufferingOptions.PauseWriterThreshold)
+        if(this.buffered - this.advance > this.BufferingOptions.PauseWriterThreshold)
         {
             this.writeAwaiter.Reset();
             this.writeAwaiter.Wait(cancellationToken);
         }
     }
 
-    public ValueTask<BufferedStreamManagerReader> GetBufferedStreamManagerReaderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
+    public ValueTask<Stream> GetBufferedStreamManagerReaderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
     {
         var args = new BufferedStreamManagerReaderArgs()
         {
@@ -125,10 +154,10 @@ public class BufferedStreamManager
             SetAdvance = (value) => this.Advance = value,
             GetWritingIsDone = () => this.WritingIsDone,
             GetBuffered = () => this.Buffered,
-            Reader = this.memoryMapped.CreateViewStream(0, this.Capacity, MemoryMappedFileAccess.Read)
+            Reader = this.memoryMapped.CreateViewStream(0, this.capacity, MemoryMappedFileAccess.Read)
         };
         var reader = new BufferedStreamManagerReader(args, mode);
-        return new ValueTask<BufferedStreamManagerReader>(reader);
+        return new ValueTask<Stream>(reader);
     }
 
     public void Dispose()

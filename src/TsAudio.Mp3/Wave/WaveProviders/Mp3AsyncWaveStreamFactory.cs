@@ -3,6 +3,7 @@
 using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -13,19 +14,26 @@ using TsAudio.Wave.WaveStreams;
 
 namespace TsAudio.Wave.WaveProviders;
 
+public class Mp3AsyncWaveStreamFactoryArgs 
+{
+    public BufferedStreamManager StreamManager { get; set; }
+
+    public long? TotalSamples { get; set; }
+}
+
 internal class Mp3WaveStreamArgs
 {
     public IMp3FrameFactory FrameFactory { get; init; }
 
     public IReadOnlyList<Mp3Index> Indices { get; init; }
 
-    public WaveStreamMetadata Metadata { get; init; }
+    public long TotalSamples { get; init; }
 
     public Task Parsing { get; init; }
 
     public Mp3WaveFormat Mp3WaveFormat { get; init; }
 
-    public BufferedStreamManagerReader Reader { get; init; }
+    public Stream Reader { get; init; }
 
     public ManualResetEventSlim ParseWait { get; init; }
 }
@@ -34,11 +42,12 @@ internal class Mp3WaveStreamArgs
 public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
 {
     protected readonly BufferedStreamManager bufferedStreamManager;
+
     protected readonly IMp3FrameFactory frameFactory;
     protected readonly PooledList<Mp3Index> indices;
     protected readonly ConcurrentBag<Mp3WaveStream> waveStreams;
     protected readonly ManualResetEventSlim consumeWaiter;
-    protected BufferedStreamManagerReader? reader;
+    protected Stream? reader;
     protected CancellationTokenSource? cts;
     protected IAsyncEnumerator<(Mp3Index Index, Mp3Frame Frame)>? framesEnumerator;
 
@@ -55,13 +64,14 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
         }
     }
 
-    public WaveStreamMetadata Metadata { get; private set; }
 
-    public Mp3AsyncWaveStreamFactory(BufferedStreamManager bufferedStreamManager, WaveStreamMetadata metadata)
+    public long? TotalSamples { get; private set; }
+
+    public Mp3AsyncWaveStreamFactory(Mp3AsyncWaveStreamFactoryArgs args)
     {
         this.frameFactory = Mp3FrameFactory.Instance;
-        this.bufferedStreamManager = bufferedStreamManager;
-        this.Metadata = metadata;
+        this.bufferedStreamManager = args.StreamManager;
+        this.TotalSamples = args.TotalSamples;
         this.indices = new();
         this.waveStreams = new();
         this.consumeWaiter = new();
@@ -133,7 +143,7 @@ public class Mp3AsyncWaveStreamFactory : IAsyncWaveStreamFactory
             ParseWait = this.consumeWaiter,
             FrameFactory = this.frameFactory,
             Indices = this.indices,
-            Metadata = this.Metadata,
+            TotalSamples = this.TotalSamples ?? this.SampleCount,
             Mp3WaveFormat = this.Mp3WaveFormat,
             Parsing = this.Parsing,
             Reader = reader,

@@ -68,7 +68,7 @@ public class Mp3WaveStream : WaveStream
         this.frameFactory = args.FrameFactory;
         this.indices = args.Indices;
         this.Mp3WaveFormat = args.Mp3WaveFormat;
-        this.Length = args.Metadata.TotalSamples;
+        this.Length = args.TotalSamples;
         this.decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
         this.WaveFormat = this.decompressor.WaveFormat;
         this.waveProvider = new BufferedWaveProvider(this.WaveFormat, ushort.MaxValue*4);
@@ -128,12 +128,6 @@ public class Mp3WaveStream : WaveStream
     {
         return Task.Run(async () =>
         {
-            var waitHandles = new[]
-            {
-                this.waitForParse.WaitHandle,
-                this.waitForDecoding.WaitHandle,
-            };
-
             while(!cancellationToken.IsCancellationRequested)
             {
                 try
@@ -144,15 +138,12 @@ public class Mp3WaveStream : WaveStream
                         {
                             await this.waveProvider.FlushAsync(cancellationToken);
                             this.waitForDecoding.Reset();
+                            this.waitForDecoding.Wait(cancellationToken);
                         }
                         else
                         {
                             this.waitForParse.Reset();
-                        }
-
-                        if(!this.waitForParse.IsSet || !this.waitForDecoding.IsSet)
-                        {
-                            WaitHandle.WaitAny(waitHandles);
+                            this.waitForParse.Wait(cancellationToken);
                         }
 
                         continue;
