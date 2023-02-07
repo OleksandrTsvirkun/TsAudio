@@ -17,7 +17,6 @@ namespace TsAudio.Drivers.WinMM
     {
         private readonly object waveOutLock;
         private readonly SynchronizationContext syncContext;
-
         private IntPtr hWaveOut;
         private WaveOutBuffer[] buffers;
         private IWaveProvider waveProvider;
@@ -120,7 +119,7 @@ namespace TsAudio.Drivers.WinMM
         public WaveOutEvent()
         {
             this.syncContext = SynchronizationContext.Current;
-            if(this.syncContext != null &&
+            if(this.syncContext is not null &&
                 ((this.syncContext.GetType().Name == "LegacyAspNetSynchronizationContext") ||
                 (this.syncContext.GetType().Name == "AspNetSynchronizationContext")))
             {
@@ -128,7 +127,7 @@ namespace TsAudio.Drivers.WinMM
             }
 
             this.waveOutLock = new object();
-            this.playbackState = TsAudio.Wave.WaveOutputs.PlaybackState.Stopped;
+            this.playbackState = PlaybackState.Stopped;
             this.cancellationTokenSource = new CancellationTokenSource();
 
             this.DesiredLatency = 300;
@@ -144,9 +143,9 @@ namespace TsAudio.Drivers.WinMM
         {
             lock(this.waveOutLock)
             {
-                Stop();
+                this.Stop();
 
-                if(PlaybackState != TsAudio.Wave.WaveOutputs.PlaybackState.Stopped)
+                if(this.PlaybackState != PlaybackState.Stopped)
                 {
                     throw new InvalidOperationException("Can't re-initialize during playback");
                 }
@@ -198,31 +197,29 @@ namespace TsAudio.Drivers.WinMM
 
             lock(this.waveOutLock)
             {
-                if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Stopped)
+                if(this.PlaybackState == PlaybackState.Stopped)
                 {
-                    this.PlaybackState = PlaybackState.Playing;
                     this.callbackEvent.Set(); // give the thread a kick
                     this.RenewCancelationToken();
                     var cancellationToken = this.cancellationTokenSource.Token;
 
-                    ThreadPool.QueueUserWorkItem(async _ =>
+                    this.PlaybackState = PlaybackState.Playing;
+                    Task.Factory.StartNew(async() =>
                     {
                         try
                         {
-                            await PlaybackThread(cancellationToken);
+                            await this.DoPlayback(cancellationToken);
                         }
                         catch(Exception)
                         {
-                            Exception exception = null;
                         }
                         finally
                         {
-                            this.PlaybackState = Wave.WaveOutputs.PlaybackState.Stopped;
+                            this.PlaybackState = PlaybackState.Stopped;
                         }
-                    });
-                   
+                    }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default);
                 }
-                else if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
+                else if(this.PlaybackState == PlaybackState.Paused)
                 {
                     this.Resume();
                     this.callbackEvent.Set(); // give the thread a kick
@@ -235,25 +232,16 @@ namespace TsAudio.Drivers.WinMM
             this.cancellationTokenSource?.Cancel();
             this.cancellationTokenSource?.Dispose();
             this.cancellationTokenSource = new CancellationTokenSource();
-            this.cancellationTokenSource.Token.Register(() =>
-            {
-                Console.WriteLine("Playback cancelced");
-            });
-        }
-
-        private ValueTask PlaybackThread(CancellationToken cancellationToken = default)
-        {
-            return DoPlayback(cancellationToken);
         }
 
         private async ValueTask DoPlayback(CancellationToken cancellationToken = default)
         {
-            while(this.PlaybackState != TsAudio.Wave.WaveOutputs.PlaybackState.Stopped)
+            while(this.PlaybackState != PlaybackState.Stopped)
             {
                 this.callbackEvent.WaitOne();
 
                 // requeue any buffers returned to us
-                if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Playing)
+                if(this.PlaybackState == PlaybackState.Playing)
                 {
                     int queued = 0;
                     foreach(var buffer in this.buffers)
@@ -280,7 +268,7 @@ namespace TsAudio.Drivers.WinMM
         {
             lock(this.waveOutLock)
             {
-                if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Playing)
+                if(this.PlaybackState == PlaybackState.Playing)
                 {
                     this.PlaybackState = PlaybackState.Paused;
 
@@ -298,7 +286,7 @@ namespace TsAudio.Drivers.WinMM
         {
             lock(this.waveOutLock)
             {
-                if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
+                if(this.PlaybackState == PlaybackState.Paused)
                 {
                     var result = WaveInterop.waveOutRestart(this.hWaveOut);
 
@@ -316,7 +304,7 @@ namespace TsAudio.Drivers.WinMM
         {
             lock(this.waveOutLock)
             {
-                if(this.PlaybackState != TsAudio.Wave.WaveOutputs.PlaybackState.Stopped)
+                if(this.PlaybackState != PlaybackState.Stopped)
                 {
                     // in the call to waveOutReset with function callbacks
                     // some drivers will block here until OnDone is called
@@ -345,19 +333,21 @@ namespace TsAudio.Drivers.WinMM
             var mmTime = new MmTime();
             mmTime.wType = MmTime.TIME_BYTES; // request results in bytes, TODO: perhaps make this a little more flexible and support the other types?
 
+            MmResult result;
+
             lock(this.waveOutLock)
             {
-
-                var result = WaveInterop.waveOutGetPosition(this.hWaveOut, ref mmTime, Marshal.SizeOf(mmTime));
-                MmException.Try(result, nameof(WaveInterop.waveOutGetPosition));
-
-                if(mmTime.wType != MmTime.TIME_BYTES)
-                {
-                    throw new Exception(string.Format("{3}: wType -> Expected {0}, Received {1}", MmTime.TIME_BYTES, mmTime.wType, nameof(WaveInterop.waveOutGetPosition)));
-                }
-                    
-                return mmTime.cb;
+                result = WaveInterop.waveOutGetPosition(this.hWaveOut, ref mmTime, Marshal.SizeOf(mmTime));
             }
+
+            MmException.Try(result, nameof(WaveInterop.waveOutGetPosition));
+
+            if(mmTime.wType != MmTime.TIME_BYTES)
+            {
+                throw new Exception(string.Format("{3}: wType -> Expected {0}, Received {1}", MmTime.TIME_BYTES, mmTime.wType, nameof(WaveInterop.waveOutGetPosition)));
+            }
+
+            return mmTime.cb;
         }
 
         #region Dispose Pattern
@@ -379,14 +369,14 @@ namespace TsAudio.Drivers.WinMM
         {
             lock(this.waveOutLock)
             {
-                Stop();
+                this.Stop();
 
                 if(disposing)
                 {
-                    DisposeBuffers();
+                    this.DisposeBuffers();
                 }
 
-                CloseWaveOut();
+                this.CloseWaveOut();
             }
         }
 

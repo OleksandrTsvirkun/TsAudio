@@ -142,7 +142,7 @@ namespace TsAudio.Drivers.WinMM
 
             this.buffer.AsSpan(bytes).Clear();
 
-            WriteToWaveOut();
+            this.WriteToWaveOut();
 
             return true;
         }
