@@ -1,7 +1,5 @@
 ﻿using System;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveProviders;
@@ -18,20 +16,12 @@ namespace TsAudio.Sample.SampleProviders
         /// Initializes a new instance of the WaveToSampleProvider class
         /// </summary>
         /// <param name="source">Source wave provider, must be IEEE float</param>
-        public WaveToSampleProvider64(IWaveProvider source) : base(source)
+        public WaveToSampleProvider64(IWaveProvider source) : base(source, 8)
         {
             if(source.WaveFormat.Encoding != WaveFormatEncoding.IeeeFloat)
             {
                 throw new ArgumentException("Must be already floating point");
             }
-        }
-
-        /// <summary>
-        /// Reads from this provider
-        /// </summary>
-        public override ValueTask<int> ReadAsync(Memory<float> buffer, CancellationToken cancellationToken = default)
-        {
-            return ReadAsync(buffer, sizeof(long), cancellationToken);
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

@@ -10,6 +10,7 @@ using TsAudio.Wave.WaveFormats;
 
 using TsAudio.Wave.WaveStreams;
 using System.IO;
+using System.Reactive.Concurrency;
 
 namespace TsAudio.Wave.WaveProviders;
 
@@ -17,7 +18,7 @@ public class Mp3WaveStream : WaveStream
 {
     private readonly BufferedWaveProvider waveProvider;
     private readonly Task parsing;
-    private readonly object repositionLock = new();
+    private readonly SemaphoreSlim repositionLock = new(1);
     private readonly IReadOnlyList<Mp3Index> indices;
     private readonly IMp3FrameFactory frameFactory;
     private readonly Stream reader;
@@ -28,8 +29,6 @@ public class Mp3WaveStream : WaveStream
     private readonly CancellationTokenSource decodeCancellationTokenSource;
 
     private int index;
-
-    public override bool CanSeek => this.reader.CanSeek;
 
     public override long Position
     {
@@ -42,17 +41,6 @@ public class Mp3WaveStream : WaveStream
             }
 
             return this.indices[this.index].SamplePosition;
-        }
-        set
-        {
-            try
-            {
-                this.SetPosition(value);
-            }
-            catch(Exception ex)
-            {
-
-            }
         }
     }
 
@@ -81,47 +69,6 @@ public class Mp3WaveStream : WaveStream
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         return this.waveProvider.ReadAsync(buffer, cancellationToken);
-    }
-
-    private void SetPosition(long value)
-    {
-        this.waitForDecoding.Reset();
-
-        lock(repositionLock)
-        {
-            var last = this.indices.LastOrDefault();
-
-            value = Math.Max(Math.Min(value, last.SamplePosition + last.SampleCount), 0);
-
-            if(value == 0)
-            {
-                this.index = 0;
-                return;
-            }
-
-            var minIndex = 0;
-            var maxIndex = this.indices.Count - 1;
-            var midIndex = (minIndex + maxIndex) / 2;
-
-            while(minIndex <= maxIndex)
-            {
-                midIndex = (minIndex + maxIndex) / 2;
-
-                if(value < indices[midIndex].SamplePosition)
-                {
-                    maxIndex = midIndex - 1;
-                }
-                else
-                {
-                    minIndex = midIndex + 1;
-                }
-            }
-
-            this.index = Math.Max(0, midIndex - 2);
-            this.waveProvider.Clear();
-            this.decompressor.Reset();
-            this.waitForDecoding.Set();
-        }
     }
 
     private Task DecodeAsync(CancellationToken cancellationToken = default)
@@ -202,7 +149,63 @@ public class Mp3WaveStream : WaveStream
         {
             this.decodeCancellationTokenSource.Cancel();
         }
+    }
 
-        base.Dispose(disposing);
+    public override async ValueTask ChangePositionAsync(long position, CancellationToken cancellationToken = default)
+    {
+        try
+        {
+            await this.repositionLock.WaitAsync(cancellationToken);
+
+            this.waitForDecoding.Reset();
+
+            var last = this.indices.LastOrDefault();
+
+            position = Math.Max(Math.Min(position, last.SamplePosition + last.SampleCount), 0);
+
+            if(position == 0)
+            {
+                this.index = 0;
+                return;
+            }
+
+            var minIndex = 0;
+            var maxIndex = this.indices.Count - 1;
+            var midIndex = (minIndex + maxIndex) / 2;
+
+            while(minIndex <= maxIndex)
+            {
+                midIndex = (minIndex + maxIndex) / 2;
+
+                if(position < indices[midIndex].SamplePosition)
+                {
+                    maxIndex = midIndex - 1;
+                }
+                else
+                {
+                    minIndex = midIndex + 1;
+                }
+            }
+
+            this.index = Math.Max(0, midIndex - 2);
+            await this.waveProvider.ResetAsync();
+            this.decompressor.Reset();
+            this.waitForDecoding.Set();
+        }
+        finally
+        {
+            this.repositionLock.Release();
+        }
+    }
+
+    public override ValueTask ChangePositionAsync(TimeSpan time, CancellationToken cancellationToken = default)
+    {
+        var position = this.TimeToPosition(time);
+        return this.ChangePositionAsync(position, cancellationToken);
+    }
+
+    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    {
+        return default;
     }
 }

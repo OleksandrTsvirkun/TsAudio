@@ -1,52 +1,61 @@
 ﻿using System;
-using System.IO;
+using System.Threading;
+using System.Threading.Tasks;
 
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveStreams;
-public abstract class WaveStream : Stream, IWaveStream
+public abstract class WaveStream : IWaveStream
 {
     public abstract WaveFormat WaveFormat { get; }
 
-    public sealed override bool CanWrite => false;
+    public abstract long Length { get; }
 
-    public override bool CanRead => true;
+    public abstract long Position { get; }
 
     public virtual int BlockAlign => this.WaveFormat.BlockAlign;
 
-    public virtual TimeSpan TotalTime => TimeSpan.FromSeconds((double)this.Length / this.WaveFormat.AverageBytesPerSecond);
+    public virtual TimeSpan TotalTime => this.PositionToTime(this.Length);
 
-    public virtual TimeSpan CurrentTime
+    public virtual TimeSpan CurrentTime => this.PositionToTime(this.Position);
+
+    public abstract ValueTask ChangePositionAsync(long position, CancellationToken cancellationToken = default);
+
+    public abstract ValueTask ChangePositionAsync(TimeSpan time, CancellationToken cancellationToken = default);
+
+    public abstract ValueTask InitAsync(CancellationToken cancellationToken = default);
+
+    public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
+
+    public void Dispose()
     {
-        get => TimeSpan.FromSeconds((double)this.Position / this.WaveFormat.AverageBytesPerSecond);
-        set => this.Position = (long)(value.TotalSeconds * this.WaveFormat.AverageBytesPerSecond);
+        this.Dispose(true);
+        GC.SuppressFinalize(this);
     }
 
-    public override long Seek(long offset, SeekOrigin origin)
+    public async ValueTask DisposeAsync()
     {
-        return this.Position = origin switch
-        {
-            SeekOrigin.Begin => offset,
-            SeekOrigin.Current => this.Position + offset,
-            SeekOrigin.End => this.Length - offset,
-            _ => throw new NotSupportedException()
-        };
+        await this.DisposeAsyncCore().ConfigureAwait(false);
+        this.Dispose(false);
+        GC.SuppressFinalize(this);
     }
 
-    public sealed override int Read(byte[] buffer, int offset, int count)
+    protected abstract ValueTask DisposeAsyncCore();
+
+    protected abstract void Dispose(bool disposing);
+
+    protected TimeSpan PositionToTime(long position)
     {
-        throw new NotImplementedException();
+        return TimeSpan.FromSeconds((double)position / this.WaveFormat.AverageBytesPerSecond);
     }
 
-    public sealed override void Flush() { }
-
-    public sealed override void Write(byte[] buffer, int offset, int count)
+    protected long TimeToPosition(TimeSpan time)
     {
-        throw new NotSupportedException("Can't write to a WaveStream");
+        return (long)(time.TotalSeconds * this.WaveFormat.AverageBytesPerSecond);
     }
 
-    public sealed override void SetLength(long length)
+    ~WaveStream()
     {
-        throw new NotSupportedException("Can't set length of a WaveStream");
+        this.Dispose(false);
     }
 }

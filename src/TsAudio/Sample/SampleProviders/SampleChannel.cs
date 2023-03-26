@@ -13,7 +13,7 @@ namespace TsAudio.Sample.SampleProviders
 
         public WaveFormat WaveFormat => this.sampleProvider.WaveFormat;
 
-        public SampleProvider(IWaveProvider waveProvider, bool forceStereo = false)
+        public SampleProvider(IWaveProvider waveProvider)
         {
             this.sampleProvider = SampleProviderConverters.ConvertWaveProviderIntoSampleProvider(waveProvider);
         }

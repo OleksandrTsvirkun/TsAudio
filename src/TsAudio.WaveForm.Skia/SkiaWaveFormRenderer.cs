@@ -16,7 +16,8 @@ public class SkiaWaveFormRenderer
 
     public WaveFormRendererData WaveFormRendererData { get; }
 
-    public int X { get; private set; }
+    private int x;
+    public int X => x;
 
     public void Cancel()
     {
@@ -31,68 +32,72 @@ public class SkiaWaveFormRenderer
         this.WaveFormRendererData = waveFormRendererData;
     }
 
-    public Task RenderWaveFormAsync(SKCanvas canvas, Action updater = null, CancellationToken cancellationTokenExternal = default)
+    public Task RenderWaveFormAsync(SKCanvas canvas, Action updater, CancellationToken cancellationTokenExternal = default)
     {
-        return Task.Run(async () =>
+        var cancellationToken = this.RenewCancellationToken(cancellationTokenExternal);
+
+        var width = this.Settings.Width;
+        var height = this.Settings.Height;
+        var metadata = this.WaveFormRendererData.Metadata;
+        var waveStream = this.WaveFormRendererData.WaveStream;
+        var peakProvider = this.WaveFormRendererData.PeakProvider;
+        var spacerPixels = this.Settings.SpacerPixels;
+        var topPen = this.Settings.TopPeakPen;
+        var bottomPen = this.Settings.BottomPeakPen;
+        var pixelsPerPeak = this.Settings.PixelsPerPeak;
+        var sampleProvider = new SampleProvider(waveStream);
+        var samplesPerPixel = (int)((metadata.TotalSamples * waveStream.WaveFormat.Channels) / width) * (pixelsPerPeak + spacerPixels);
+
+        var midPoint = height / 2;
+        peakProvider.Init(sampleProvider, samplesPerPixel);
+
+        x = 0;
+        canvas.Clear();
+
+        return Task.Factory.StartNew(async () =>
         {
-            this.Cancel();
-            this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
-            var cancellationToken = this.cts.Token;
-
-            var width = this.Settings.Width;
-            var height = this.Settings.Height;
-            var metadata = this.WaveFormRendererData.Metadata;
-            var waveStream = this.WaveFormRendererData.WaveStream;
-            var peakProvider = this.WaveFormRendererData.PeakProvider;
-
-            var sampleProvider = new SampleProvider(waveStream);
-
-            var midPoint = height / 2;
-
             try
             {
-                var samplesPerPixel = (int)((metadata.TotalSamples * waveStream.WaveFormat.Channels) / width) * (this.Settings.PixelsPerPeak + this.Settings.SpacerPixels);
-
-                peakProvider.Init(sampleProvider, samplesPerPixel);
-
-                var topPen = this.Settings.TopPeakPen;
-                var bottomPen = this.Settings.BottomPeakPen;
-
-                X = 0;
-                canvas.Clear();
-
-                while(X < width && await peakProvider.MoveNextAsync())
+                while(x < width && await peakProvider.MoveNextAsync())
                 {
                     cancellationToken.ThrowIfCancellationRequested();
 
                     var currentPeak = peakProvider.Current;
-                    var maxLine = height * currentPeak.Max;
-                    var minLine = height * currentPeak.Min;
+                    var maxLine = midPoint - height * currentPeak.Max;
+                    var minLine = midPoint - height * currentPeak.Min;
 
-                    for(var n = 0; n < this.Settings.PixelsPerPeak; ++n, ++X)
+                    for(var n = 0; n < pixelsPerPeak; ++n, ++x)
                     {
-                        canvas.DrawLine(X, midPoint, X, midPoint - maxLine, topPen);
-                        canvas.DrawLine(X, midPoint, X, midPoint - minLine, bottomPen);
+                        canvas.DrawLine(x, midPoint, x, maxLine, topPen);
+                        canvas.DrawLine(x, midPoint, x, minLine, bottomPen);
                     }
 
-                    X += this.Settings.SpacerPixels;
+                    x += spacerPixels;
 
-                    updater?.Invoke();
+                    updater();
                 }
             }
             catch(OperationCanceledException)
             {
 
             }
-            catch(Exception ex)
+            catch(Exception)
             {
-                //canvas.Clear();
+
             }
             finally
             {
-                updater?.Invoke();
-                await peakProvider.DisposeAsync();
+                updater();
+                peakProvider.Dispose();
             }
-        });
+        }, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
+    }
+
+    private CancellationToken RenewCancellationToken(CancellationToken cancellationTokenExternal)
+    {
+        this.Cancel();
+        this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
+        var cancellationToken = this.cts.Token;
+        return cancellationToken;
     }
 }

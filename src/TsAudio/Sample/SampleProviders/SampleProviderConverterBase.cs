@@ -6,7 +6,6 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using TsAudio.Wave.WaveFormats;
-using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveProviders;
 
 namespace TsAudio.Sample.SampleProviders
@@ -17,6 +16,8 @@ namespace TsAudio.Sample.SampleProviders
     public abstract class SampleProviderConverterBase<T> : ISampleProvider
         where T : struct
     {
+        protected readonly int bytesPerSample;
+
         /// <summary>
         /// Source Wave Provider
         /// </summary>
@@ -38,10 +39,11 @@ namespace TsAudio.Sample.SampleProviders
         /// Initialises a new instance of SampleProviderConverterBase
         /// </summary>
         /// <param name="source">Source Wave provider</param>
-        public SampleProviderConverterBase(IWaveProvider source)
+        public SampleProviderConverterBase(IWaveProvider source, int bytesPerSample)
         {
             this.waveProvider = source;
             this.WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(source.WaveFormat.SampleRate, source.WaveFormat.Channels);
+            this.bytesPerSample = bytesPerSample;
         }
 
         /// <summary>
@@ -49,21 +51,17 @@ namespace TsAudio.Sample.SampleProviders
         /// </summary>
         /// <param name="buffer">Sample buffer</param>
         /// <returns>Number of samples read</returns>
-        public abstract ValueTask<int> ReadAsync(Memory<float> buffer, CancellationToken cancellationToken = default);
-
-        [MethodImpl(MethodImplOptions.AggressiveInlining)]
-        protected async ValueTask<int> ReadAsync(Memory<float> buffer, int size, CancellationToken cancellationToken = default)
+        public async ValueTask<int> ReadAsync(Memory<float> buffer, CancellationToken cancellationToken = default)
         {
-            var sourceBytesRequired = buffer.Length * size;
-
+            var sourceBytesRequired = buffer.Length * this.bytesPerSample;
             using var sourceBufferOwner = this.Pool.Rent(sourceBytesRequired);
             var sourceBuffer = sourceBufferOwner.Memory.Slice(0, sourceBytesRequired);
             int bytesRead = await this.waveProvider.ReadAsync(sourceBuffer, cancellationToken);
             sourceBuffer = sourceBuffer.Slice(0, bytesRead);
 
-            this.TransformSamples(buffer.Span, size, bytesRead, sourceBuffer.Span);
+            this.TransformSamples(buffer.Span, this.bytesPerSample, bytesRead, sourceBuffer.Span);
 
-            return bytesRead / size;
+            return bytesRead / this.bytesPerSample;
         }
 
         [MethodImpl(MethodImplOptions.AggressiveInlining)]

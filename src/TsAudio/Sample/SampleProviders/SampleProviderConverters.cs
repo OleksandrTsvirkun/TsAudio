@@ -1,7 +1,6 @@
 ﻿using System;
 
 using TsAudio.Wave.WaveFormats;
-using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveProviders;
 
 namespace TsAudio.Sample.SampleProviders

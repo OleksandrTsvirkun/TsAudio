@@ -14,7 +14,6 @@ namespace TsAudio.Wave.WaveProviders
     /// </summary>
     public class BufferedWaveProvider : IWaveProvider
     {
-        protected readonly object locker = new();
         protected readonly ManualResetEventSlim asyncReadEvent = new(false);
         protected readonly ManualResetEventSlim asyncWriteEvent = new(true);
 
@@ -83,7 +82,6 @@ namespace TsAudio.Wave.WaveProviders
                                     : memory.Length - readPosition;
 
                 var toCopy = Math.Min(canRead, buffer.Length);
-
 
                 var data = memory.Slice(readPosition, toCopy);
 
@@ -159,18 +157,16 @@ namespace TsAudio.Wave.WaveProviders
             return default;
         }
 
-        public void Clear()
+        public ValueTask ResetAsync()
         {
-            lock(locker)
-            {
-                this.isFlushed = false;
-                this.writePosition = 0;
-                this.readPosition = 0;
-                this.memoryOwner.Memory.Span.Clear();
-                this.isEmpty = true;
-                this.asyncReadEvent.Reset();
-                this.asyncWriteEvent.Set();
-            }
+            this.isFlushed = false;
+            this.writePosition = 0;
+            this.readPosition = 0;
+            this.memoryOwner.Memory.Span.Clear();
+            this.isEmpty = true;
+            this.asyncReadEvent.Reset();
+            this.asyncWriteEvent.Set();
+            return default;
         }
     }
 }

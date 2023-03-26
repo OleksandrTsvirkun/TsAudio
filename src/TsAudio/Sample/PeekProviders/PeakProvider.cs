@@ -1,6 +1,4 @@
-﻿using System;
-using System.Buffers;
-using System.Collections;
+﻿using System.Buffers;
 using System.Threading.Tasks;
 
 using TsAudio.Sample.SampleProviders;
