@@ -1,24 +1,23 @@
 ﻿using System;
 
-namespace TsAudio.Wave.WaveFormats
+namespace TsAudio.Wave.WaveFormats;
+
+/// <summary>
+/// Wave Format Padding Flags
+/// </summary>
+[Flags]
+public enum Mp3WaveFormatFlags
 {
     /// <summary>
-    /// Wave Format Padding Flags
+    /// MPEGLAYER3_FLAG_PADDING_ISO
     /// </summary>
-    [Flags]
-    public enum Mp3WaveFormatFlags
-    {
-        /// <summary>
-        /// MPEGLAYER3_FLAG_PADDING_ISO
-        /// </summary>
-        PaddingIso = 0,
-        /// <summary>
-        /// MPEGLAYER3_FLAG_PADDING_ON
-        /// </summary>
-        PaddingOn = 1,
-        /// <summary>
-        /// MPEGLAYER3_FLAG_PADDING_OFF
-        /// </summary>
-        PaddingOff = 2,
-    }
+    PaddingIso = 0,
+    /// <summary>
+    /// MPEGLAYER3_FLAG_PADDING_ON
+    /// </summary>
+    PaddingOn = 1,
+    /// <summary>
+    /// MPEGLAYER3_FLAG_PADDING_OFF
+    /// </summary>
+    PaddingOff = 2,
 }

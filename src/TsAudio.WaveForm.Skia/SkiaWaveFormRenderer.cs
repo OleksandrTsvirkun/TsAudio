@@ -38,7 +38,13 @@ public class SkiaWaveFormRenderer
 
         var width = this.Settings.Width;
         var height = this.Settings.Height;
-        var metadata = this.WaveFormRendererData.Metadata;
+        var totalSamples = this.WaveFormRendererData.TotalSamples;
+
+        if(!totalSamples.HasValue)
+        {
+            return Task.CompletedTask;
+        }
+
         var waveStream = this.WaveFormRendererData.WaveStream;
         var peakProvider = this.WaveFormRendererData.PeakProvider;
         var spacerPixels = this.Settings.SpacerPixels;
@@ -46,7 +52,7 @@ public class SkiaWaveFormRenderer
         var bottomPen = this.Settings.BottomPeakPen;
         var pixelsPerPeak = this.Settings.PixelsPerPeak;
         var sampleProvider = new SampleProvider(waveStream);
-        var samplesPerPixel = (int)((metadata.TotalSamples * waveStream.WaveFormat.Channels) / width) * (pixelsPerPeak + spacerPixels);
+        var samplesPerPixel = (int)((totalSamples.Value * waveStream.WaveFormat.Channels) / width) * (pixelsPerPeak + spacerPixels);
 
         var midPoint = height / 2;
         peakProvider.Init(sampleProvider, samplesPerPixel);
@@ -58,10 +64,8 @@ public class SkiaWaveFormRenderer
         {
             try
             {
-                while(x < width && await peakProvider.MoveNextAsync())
+                while(x < width && await peakProvider.MoveNextAsync() && !cancellationToken.IsCancellationRequested)
                 {
-                    cancellationToken.ThrowIfCancellationRequested();
-
                     var currentPeak = peakProvider.Current;
                     var maxLine = midPoint - height * currentPeak.Max;
                     var minLine = midPoint - height * currentPeak.Min;
@@ -77,10 +81,6 @@ public class SkiaWaveFormRenderer
                     updater();
                 }
             }
-            catch(OperationCanceledException)
-            {
-
-            }
             catch(Exception)
             {
 
@@ -88,7 +88,7 @@ public class SkiaWaveFormRenderer
             finally
             {
                 updater();
-                peakProvider.Dispose();
+                await peakProvider.DisposeAsync();
             }
         }, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
     }

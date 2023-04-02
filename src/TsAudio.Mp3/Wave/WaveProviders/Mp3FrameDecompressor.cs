@@ -1,54 +1,50 @@
-﻿using System;
-using System.Buffers;
-
-using TsAudio.Decoders.Mp3;
+﻿using TsAudio.Decoders.Mp3;
 using TsAudio.Formats.Mp3;
 using TsAudio.Utils.Memory;
 using TsAudio.Wave.WaveFormats;
 
-namespace TsAudio.Wave.WaveProviders
+namespace TsAudio.Wave.WaveProviders;
+
+public class Mp3FrameDecompressor : IMp3FrameDecompressor
 {
-    public class Mp3FrameDecompressor : IMp3FrameDecompressor
+    private readonly MpegFrameDecoder decoder;
+    private readonly Mp3FrameWrapper frame;
+
+    public WaveFormat WaveFormat { get; private set; }
+
+    public StereoMode StereoMode
     {
-        private readonly MpegFrameDecoder decoder;
-        private readonly Mp3FrameWrapper frame;
+        get => this.decoder.StereoMode;
+        set => this.decoder.StereoMode = value;
+    }
 
-        public WaveFormat WaveFormat { get; private set; }
+    public Mp3FrameDecompressor(WaveFormat waveFormat)
+    {
+        // we assume waveFormat was calculated from the first frame already
+        this.WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(waveFormat.SampleRate, waveFormat.Channels);
 
-        public StereoMode StereoMode
-        {
-            get => this.decoder.StereoMode;
-            set => this.decoder.StereoMode = value;
-        }
+        this.decoder = new MpegFrameDecoder();
+        this.frame = new Mp3FrameWrapper();
+    }
 
-        public Mp3FrameDecompressor(WaveFormat waveFormat)
-        {
-            // we assume waveFormat was calculated from the first frame already
-            this.WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(waveFormat.SampleRate, waveFormat.Channels);
+    public MemoryOwner<byte> DecompressFrame(Mp3Frame frame)
+    {
+        this.frame.WrappedFrame = frame;
+        return this.decoder.DecodeFrame(this.frame);
+    }
 
-            this.decoder = new MpegFrameDecoder();
-            this.frame = new Mp3FrameWrapper();
-        }
+    public void SetEQ(float[] eq)
+    {
+        this.decoder.SetEQ(eq);
+    }
 
-        public MemoryOwner<byte> DecompressFrame(Mp3Frame frame)
-        {
-            this.frame.WrappedFrame = frame;
-            return this.decoder.DecodeFrame(this.frame);
-        }
+    public void Reset()
+    {
+        this.decoder.Reset();
+    }
 
-        public void SetEQ(float[] eq)
-        {
-            this.decoder.SetEQ(eq);
-        }
-
-        public void Reset()
-        {
-            this.decoder.Reset();
-        }
-
-        public void Dispose()
-        {
-            // no-op, since we don't have anything to do here...
-        }
+    public void Dispose()
+    {
+        this.Reset();
     }
 }

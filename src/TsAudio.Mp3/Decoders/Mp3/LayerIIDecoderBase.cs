@@ -23,7 +23,7 @@ namespace TsAudio.Decoders.Mp3
             // only read as many subbands as we actually need; pay attention to the intensity stereo subbands
             var subbandCount = rateTable.Length;
             var jsbound = subbandCount;
-            if (frame.ChannelMode == MpegChannelMode.JointStereo)
+            if(frame.ChannelMode == MpegChannelMode.JointStereo)
             {
                 jsbound = frame.ChannelModeExtension * 4 + 4;
             }
@@ -31,33 +31,35 @@ namespace TsAudio.Decoders.Mp3
             // read the full stereo subbands
             var channels = frame.ChannelMode == MpegChannelMode.Mono ? 1 : 2;
             var sb = 0;
-            for (; sb < jsbound; sb++)
+            for(; sb < jsbound; sb++)
             {
                 var bits = allocLookupTable[rateTable[sb]][0];
-                for (int ch = 0; ch < channels; ch++)
+                for(int ch = 0; ch < channels; ch++)
                 {
                     var alloc = frame.ReadBits(bits);
-                    if (alloc > 0) scfsiBits += 2;
+                    if(alloc > 0)
+                        scfsiBits += 2;
 
                     MpegFrame.UpdateCRC(alloc, bits, ref crc);
                 }
             }
 
             // read the intensity stereo subbands
-            for (; sb < subbandCount; sb++)
+            for(; sb < subbandCount; sb++)
             {
                 var bits = allocLookupTable[rateTable[sb]][0];
 
                 var alloc = frame.ReadBits(bits);
-                if (alloc > 0) scfsiBits += channels * 2;
+                if(alloc > 0)
+                    scfsiBits += channels * 2;
 
                 MpegFrame.UpdateCRC(alloc, bits, ref crc);
             }
 
             // finally, read the scalefac selection bits
-            if (readScfsiBits)
+            if(readScfsiBits)
             {
-                while (scfsiBits >= 2)
+                while(scfsiBits >= 2)
                 {
                     MpegFrame.UpdateCRC(frame.ReadBits(2), 2, ref crc);
                     scfsiBits -= 2;
@@ -130,7 +132,7 @@ namespace TsAudio.Decoders.Mp3
 
             // NB: ReadScaleFactors(...) requires all three granules, even in Layer I
             _scalefac = new int[][][] { new int[3][], new int[3][] };
-            for (int i = 0; i < 3; i++)
+            for(int i = 0; i < 3; i++)
             {
                 _scalefac[0][i] = new int[SBLIMIT];
                 _scalefac[1][i] = new int[SBLIMIT];
@@ -147,7 +149,7 @@ namespace TsAudio.Decoders.Mp3
 
             ReadAllocation(frame, rateTable);
 
-            for (int i = 0; i < _scfsi[0].Length; i++)
+            for(int i = 0; i < _scfsi[0].Length; i++)
             {
                 // Since Layer II has to know which subbands have energy, we use the "Layer I valid" selection to mark that energy is present.
                 // That way Layer I doesn't have to do anything else.
@@ -166,7 +168,7 @@ namespace TsAudio.Decoders.Mp3
         // this just reads the channel mode and set a few flags
         void InitFrame(IMpegFrame frame)
         {
-            switch (frame.ChannelMode)
+            switch(frame.ChannelMode)
             {
                 case MpegChannelMode.Mono:
                     _channels = 1;
@@ -188,22 +190,23 @@ namespace TsAudio.Decoders.Mp3
         void ReadAllocation(IMpegFrame frame, int[] rateTable)
         {
             var _subBandCount = rateTable.Length;
-            if (_jsbound > _subBandCount) _jsbound = _subBandCount;
+            if(_jsbound > _subBandCount)
+                _jsbound = _subBandCount;
 
             Array.Clear(_allocation[0], 0, SBLIMIT);
             Array.Clear(_allocation[1], 0, SBLIMIT);
 
             int sb = 0;
-            for (; sb < _jsbound; sb++)
+            for(; sb < _jsbound; sb++)
             {
                 var table = _allocLookupTable[rateTable[sb]];
                 var bits = table[0];
-                for (int ch = 0; ch < _channels; ch++)
+                for(int ch = 0; ch < _channels; ch++)
                 {
                     _allocation[ch][sb] = table[frame.ReadBits(bits) + 1];
                 }
             }
-            for (; sb < _subBandCount; sb++)
+            for(; sb < _subBandCount; sb++)
             {
                 var table = _allocLookupTable[rateTable[sb]];
                 _allocation[0][sb] = _allocation[1][sb] = table[frame.ReadBits(table[0]) + 1];
@@ -214,11 +217,11 @@ namespace TsAudio.Decoders.Mp3
 
         void ReadScaleFactors(IMpegFrame frame)
         {
-            for (int sb = 0; sb < SBLIMIT; sb++)
+            for(int sb = 0; sb < SBLIMIT; sb++)
             {
-                for (int ch = 0; ch < _channels; ch++)
+                for(int ch = 0; ch < _channels; ch++)
                 {
-                    switch (_scfsi[ch][sb])
+                    switch(_scfsi[ch][sb])
                     {
                         case 0:
                             // all three
@@ -259,18 +262,18 @@ namespace TsAudio.Decoders.Mp3
         {
             // load in all the data for this frame (1152 samples in this case)
             // NB: we flatten these into output order
-            for (int ss = 0, idx = 0; ss < SSLIMIT; ss++, idx += SBLIMIT * (_granuleCount - 1))
+            for(int ss = 0, idx = 0; ss < SSLIMIT; ss++, idx += SBLIMIT * (_granuleCount - 1))
             {
-                for (int sb = 0; sb < SBLIMIT; sb++, idx++)
+                for(int sb = 0; sb < SBLIMIT; sb++, idx++)
                 {
-                    for (int ch = 0; ch < _channels; ch++)
+                    for(int ch = 0; ch < _channels; ch++)
                     {
-                        if (ch == 0 || sb < _jsbound)
+                        if(ch == 0 || sb < _jsbound)
                         {
                             var alloc = _allocation[ch][sb];
-                            if (alloc != 0)
+                            if(alloc != 0)
                             {
-                                if (alloc < 0)
+                                if(alloc < 0)
                                 {
                                     // grouping (Layer II only, so we don't have to play with the granule count)
                                     var val = frame.ReadBits(-alloc);
@@ -284,7 +287,7 @@ namespace TsAudio.Decoders.Mp3
                                 else
                                 {
                                     // non-grouping
-                                    for (int gr = 0; gr < _granuleCount; gr++)
+                                    for(int gr = 0; gr < _granuleCount; gr++)
                                     {
                                         _samples[ch][idx + SBLIMIT * gr] = frame.ReadBits(alloc);
                                     }
@@ -293,7 +296,7 @@ namespace TsAudio.Decoders.Mp3
                             else
                             {
                                 // no energy...  zero out the samples
-                                for (int gr = 0; gr < _granuleCount; gr++)
+                                for(int gr = 0; gr < _granuleCount; gr++)
                                 {
                                     _samples[ch][idx + SBLIMIT * gr] = 0;
                                 }
@@ -302,7 +305,7 @@ namespace TsAudio.Decoders.Mp3
                         else
                         {
                             // copy chan 0 to chan 1
-                            for (int gr = 0; gr < _granuleCount; gr++)
+                            for(int gr = 0; gr < _granuleCount; gr++)
                             {
                                 _samples[1][idx + SBLIMIT * gr] = _samples[0][idx + SBLIMIT * gr];
                             }
@@ -320,12 +323,12 @@ namespace TsAudio.Decoders.Mp3
 
             var startChannel = 0;
             var endChannel = _channels - 1;
-            if (_channels == 1 || StereoMode == StereoMode.LeftOnly)
+            if(_channels == 1 || StereoMode == StereoMode.LeftOnly)
             {
                 leftBuf = ch0;
                 endChannel = 0;
             }
-            else if (StereoMode == StereoMode.RightOnly)
+            else if(StereoMode == StereoMode.RightOnly)
             {
                 rightBuf = ch0;  // this is correct... if there's only a single channel output, it goes in channel 0's buffer
                 startChannel = 1;
@@ -337,14 +340,14 @@ namespace TsAudio.Decoders.Mp3
             }
 
             int idx = 0;
-            for (int ch = startChannel; ch <= endChannel; ch++)
+            for(int ch = startChannel; ch <= endChannel; ch++)
             {
                 idx = 0;
-                for (int gr = 0; gr < _granuleCount; gr++)
+                for(int gr = 0; gr < _granuleCount; gr++)
                 {
-                    for (int ss = 0; ss < SSLIMIT; ss++)
+                    for(int ss = 0; ss < SSLIMIT; ss++)
                     {
-                        for (int sb = 0; sb < SBLIMIT; sb++, idx++)
+                        for(int sb = 0; sb < SBLIMIT; sb++, idx++)
                         {
                             // do the dequant and the denorm; output to _polyPhaseBuf
                             // NB: Layers I & II use the same algorithm here...  Grouping changes the bit counts, but doesn't change the algo
@@ -353,10 +356,10 @@ namespace TsAudio.Decoders.Mp3
                             //     - Make sure to normalize each sample to 16 bits!
 
                             var alloc = _allocation[ch][sb];
-                            if (alloc != 0)
+                            if(alloc != 0)
                             {
                                 float[] c, d;
-                                if (alloc < 0)
+                                if(alloc < 0)
                                 {
                                     alloc = -alloc / 2 + -alloc % 2 - 1;
                                     c = _groupedC;
@@ -388,9 +391,9 @@ namespace TsAudio.Decoders.Mp3
                 }
             }
 
-            if (_channels == 2 && StereoMode == StereoMode.DownmixToMono)
+            if(_channels == 2 && StereoMode == StereoMode.DownmixToMono)
             {
-                for (int i = 0; i < idx; i++)
+                for(int i = 0; i < idx; i++)
                 {
                     ch0[i] = (ch0[i] + ch1[i]) / 2;
                 }

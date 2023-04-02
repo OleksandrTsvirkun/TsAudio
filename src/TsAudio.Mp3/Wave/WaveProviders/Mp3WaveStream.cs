@@ -10,7 +10,6 @@ using TsAudio.Wave.WaveFormats;
 
 using TsAudio.Wave.WaveStreams;
 using System.IO;
-using System.Reactive.Concurrency;
 
 namespace TsAudio.Wave.WaveProviders;
 
@@ -18,17 +17,19 @@ public class Mp3WaveStream : WaveStream
 {
     private readonly BufferedWaveProvider waveProvider;
     private readonly Task parsing;
-    private readonly SemaphoreSlim repositionLock = new(1);
+    private readonly SemaphoreSlim repositionLock = new(1, 1);
     private readonly IReadOnlyList<Mp3Index> indices;
     private readonly IMp3FrameFactory frameFactory;
     private readonly Stream reader;
-    private readonly ManualResetEventSlim waitForDecoding = new(false);
+    private readonly ManualResetEventSlim waitForDecoding = new(true);
     private readonly ManualResetEventSlim waitForParse;
     private readonly IMp3FrameDecompressor decompressor;
     private readonly Task decoding;
     private readonly CancellationTokenSource decodeCancellationTokenSource;
 
     private int index;
+
+    public override long? TotalSamples { get; }
 
     public override long Position
     {
@@ -44,8 +45,6 @@ public class Mp3WaveStream : WaveStream
         }
     }
 
-    public override long Length { get; }
-
     public override WaveFormat WaveFormat { get; }
 
     public Mp3WaveFormat Mp3WaveFormat { get; }
@@ -56,11 +55,11 @@ public class Mp3WaveStream : WaveStream
         this.frameFactory = args.FrameFactory;
         this.indices = args.Indices;
         this.Mp3WaveFormat = args.Mp3WaveFormat;
-        this.Length = args.Metadata.TotalSamples;
+        this.TotalSamples = args.TotalSamples;
         this.decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
         this.WaveFormat = this.decompressor.WaveFormat;
         this.waveProvider = new BufferedWaveProvider(this.WaveFormat, ushort.MaxValue*4);
-        this.parsing = args.Parsing;
+        this.parsing = args.Analyzing;
         this.waitForParse = args.ParseWait;
         this.decodeCancellationTokenSource = new();
         this.decoding = this.DecodeAsync(this.decodeCancellationTokenSource.Token);
@@ -73,18 +72,14 @@ public class Mp3WaveStream : WaveStream
 
     private Task DecodeAsync(CancellationToken cancellationToken = default)
     {
-        return Task.Run(async () =>
+        return Task.Factory.StartNew(async () =>
         {
-            var waitHandles = new[]
-            {
-                this.waitForParse.WaitHandle,
-                this.waitForDecoding.WaitHandle,
-            };
-
             while(!cancellationToken.IsCancellationRequested)
             {
                 try
                 {
+                    this.waitForDecoding.Wait(cancellationToken);
+
                     if(this.index >= this.indices.Count)
                     {
                         if(this.parsing.IsCompleted)
@@ -95,11 +90,6 @@ public class Mp3WaveStream : WaveStream
                         else
                         {
                             this.waitForParse.Reset();
-                        }
-
-                        if(!this.waitForParse.IsSet || !this.waitForDecoding.IsSet)
-                        {
-                            WaitHandle.WaitAny(waitHandles);
                         }
 
                         continue;
@@ -140,7 +130,7 @@ public class Mp3WaveStream : WaveStream
                 }
 
             }
-        }, cancellationToken);
+        }, cancellationToken, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning, TaskScheduler.Default);
     }
 
     protected override void Dispose(bool disposing)
@@ -151,7 +141,7 @@ public class Mp3WaveStream : WaveStream
         }
     }
 
-    public override async ValueTask ChangePositionAsync(long position, CancellationToken cancellationToken = default)
+    public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
     {
         try
         {
@@ -196,12 +186,6 @@ public class Mp3WaveStream : WaveStream
         {
             this.repositionLock.Release();
         }
-    }
-
-    public override ValueTask ChangePositionAsync(TimeSpan time, CancellationToken cancellationToken = default)
-    {
-        var position = this.TimeToPosition(time);
-        return this.ChangePositionAsync(position, cancellationToken);
     }
 
     public override ValueTask InitAsync(CancellationToken cancellationToken = default)
