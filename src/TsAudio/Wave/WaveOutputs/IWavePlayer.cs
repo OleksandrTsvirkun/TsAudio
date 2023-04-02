@@ -3,61 +3,51 @@ using System;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveProviders;
 
-namespace TsAudio.Wave.WaveOutputs
-{
-    public class PlaybackStateArgs : EventArgs
-    {
-        public PlaybackState PlaybackState { get; }
+namespace TsAudio.Wave.WaveOutputs;
 
-        public PlaybackStateArgs(PlaybackState playbackState)
-        {
-            this.PlaybackState = playbackState;
-        }
-    }
+/// <summary>
+/// Represents the interface to a device that can play a WaveFile
+/// </summary>
+public interface IWavePlayer : IDisposable
+{
+    /// <summary>
+    /// The volume 
+    /// 1.0f is full scale
+    /// Note that not all implementations necessarily support volume changes
+    /// </summary>
+    float Volume { get; set; }
 
     /// <summary>
-    /// Represents the interface to a device that can play a WaveFile
+    /// Current playback state
     /// </summary>
-    public interface IWavePlayer : IDisposable
-    {
-        /// <summary>
-        /// The volume 
-        /// 1.0f is full scale
-        /// Note that not all implementations necessarily support volume changes
-        /// </summary>
-        float Volume { get; set; }
+    PlaybackState PlaybackState { get; }
 
-        /// <summary>
-        /// Current playback state
-        /// </summary>
-        PlaybackState PlaybackState { get; }
+    /// <summary>
+    /// The WaveFormat this device is using for playback
+    /// </summary>
+    WaveFormat WaveFormat { get; }
 
-        /// <summary>
-        /// The WaveFormat this device is using for playback
-        /// </summary>
-        WaveFormat WaveFormat { get; }
 
-        /// <summary>
-        /// Begin playback
-        /// </summary>
-        void Play();
+    event EventHandler<PlaybackStateEventArgs> PlaybackStateChanged;
 
-        /// <summary>
-        /// Stop playback
-        /// </summary>
-        void Stop();
+    /// <summary>
+    /// Begin playback
+    /// </summary>
+    void Play();
 
-        /// <summary>
-        /// Pause Playback
-        /// </summary>
-        void Pause();
+    /// <summary>
+    /// Stop playback
+    /// </summary>
+    void Stop();
 
-        /// <summary>
-        /// Initialise playback
-        /// </summary>
-        /// <param name="waveProvider">The waveprovider to be played</param>
-        void Init(IWaveProvider waveProvider);
+    /// <summary>
+    /// Pause Playback
+    /// </summary>
+    void Pause();
 
-        event EventHandler<PlaybackStateArgs> PlaybackStateChanged;
-    }
+    /// <summary>
+    /// Initialise playback
+    /// </summary>
+    /// <param name="waveProvider">The waveprovider to be played</param>
+    void Init(IWaveProvider waveProvider);
 }

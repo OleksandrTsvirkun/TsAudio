@@ -1,9 +1,7 @@
-﻿namespace TsAudio.Utils.Streams
+﻿namespace TsAudio.Utils.Streams;
+
+public enum ReaderMode
 {
-    public enum ReaderMode
-    {
-        BuffuredKick,
-        Kick,
-        Wait,
-    }
+    Kick,
+    Wait,
 }

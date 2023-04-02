@@ -1,11 +1,15 @@
-﻿using System.Collections.Generic;
+﻿using System;
+using System.Threading.Tasks;
 
 using TsAudio.Sample.SampleProviders;
 
-namespace TsAudio.Sample.PeekProviders
+namespace TsAudio.Sample.PeekProviders; 
+
+public interface IPeakProvider : IAsyncDisposable
 {
-    public interface IPeakProvider : IAsyncEnumerator<PeakInfo>
-    {
-        void Init(ISampleProvider reader, int samplesPerPeek);
-    }
+    void Init(ISampleProvider reader, int samplesPerPeek);
+
+    PeakInfo Current { get; }
+
+    ValueTask<bool> MoveNextAsync();
 }

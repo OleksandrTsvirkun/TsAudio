@@ -1,38 +1,23 @@
 ﻿using System;
 
 using TsAudio.Wave.WaveFormats;
-using TsAudio.Wave.WaveOutputs;
 
-namespace TsAudio.Wave.WaveInputs
+namespace TsAudio.Wave.WaveInputs;
+
+/// <summary>
+/// Generic interface for wave recording
+/// </summary>
+public interface IWaveIn : IDisposable
 {
-    /// <summary>
-    /// Generic interface for wave recording
-    /// </summary>
-    public interface IWaveIn : IDisposable
-    {
-        /// <summary>
-        /// Recording WaveFormat
-        /// </summary>
-        WaveFormat WaveFormat { get; set; }
+    WaveFormat WaveFormat { get; }
 
-        /// <summary>
-        /// Start Recording
-        /// </summary>
-        void StartRecording();
+    CaptureState CaptureState { get; }
 
-        /// <summary>
-        /// Stop Recording
-        /// </summary>
-        void StopRecording();
+    event EventHandler<WaveInEventArgs> DataAvailable;
 
-        /// <summary>
-        /// Indicates recorded data is available 
-        /// </summary>
-        event EventHandler<WaveInEventArgs> DataAvailable;
+    event EventHandler<CaptureStateEventArgs> CaptureStateChanged;
 
-        /// <summary>
-        /// Indicates that all recorded data has now been received.
-        /// </summary>
-        event EventHandler<StoppedEventArgs> RecordingStopped;
-    }
+    void StartRecording();
+
+    void StopRecording();
 }

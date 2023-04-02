@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace TsAudio.Utils.Streams;
 
-internal class BufferedStreamManagerReaderArgs
+internal class MemoryMappedStreamManagerReaderArgs
 {
     public ManualResetEventSlim ReadAwaiter { get; init; }
 

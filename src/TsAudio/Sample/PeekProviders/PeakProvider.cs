@@ -1,43 +1,45 @@
 ﻿using System.Buffers;
+using System.Threading;
 using System.Threading.Tasks;
 
 using TsAudio.Sample.SampleProviders;
 
-namespace TsAudio.Sample.PeekProviders
+namespace TsAudio.Sample.PeekProviders;
+
+public abstract class PeakProvider : IPeakProvider
 {
-    public abstract class PeakProvider : IPeakProvider
+    protected ISampleProvider Provider { get; private set; }
+
+    protected int SamplesPerPeak { get; private set; }
+
+    protected IMemoryOwner<float> BufferOwner { get; private set; }
+
+    private MemoryPool<float> pool;
+    public MemoryPool<float> Pool
     {
-        protected ISampleProvider Provider { get; private set; }
+        get => this.pool ??= MemoryPool<float>.Shared;
+        set => this.pool = value ?? MemoryPool<float>.Shared;
+    }
 
-        protected int SamplesPerPeak { get; private set; }
+    public CancellationToken CancellationToken { get; set; }
 
-        protected IMemoryOwner<float> BufferOwner { get; private set; }
+    public PeakInfo Current { get; protected set; }
 
-        private MemoryPool<float> pool;
-        public MemoryPool<float> Pool
-        {
-            get => this.pool ??= MemoryPool<float>.Shared;
-            set => this.pool = value ?? MemoryPool<float>.Shared;
-        }
+    public void Init(ISampleProvider provider, int samplesPerPeak)
+    {
+        this.SamplesPerPeak = samplesPerPeak;
+        this.Provider = provider;
+        this.SamplesPerPeak = samplesPerPeak;
 
-        public PeakInfo Current { get; protected set; }
+        this.BufferOwner?.Dispose();
+        this.BufferOwner = this.Pool.Rent(samplesPerPeak);
+    }
 
-        public void Init(ISampleProvider provider, int samplesPerPeak)
-        {
-            this.SamplesPerPeak = samplesPerPeak;
-            this.Provider = provider;
-            this.SamplesPerPeak = samplesPerPeak;
+    public abstract ValueTask<bool> MoveNextAsync();
 
-            this.BufferOwner?.Dispose();
-            this.BufferOwner = this.Pool.Rent(samplesPerPeak);
-        }
-
-        public abstract ValueTask<bool> MoveNextAsync();
-
-        public ValueTask DisposeAsync()
-        {
-            this.BufferOwner.Dispose();
-            return default;
-        }
+    public ValueTask DisposeAsync()
+    {
+        this.BufferOwner.Dispose();
+        return default;
     }
 }

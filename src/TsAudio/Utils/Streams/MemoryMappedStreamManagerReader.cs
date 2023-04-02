@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Streams;
 
-public class BufferedStreamManagerReader : Stream
+public class MemoryMappedStreamManagerReader : Stream
 {
     private readonly MemoryMappedViewStream reader;
     private readonly ManualResetEventSlim readAwaiter;
@@ -32,7 +32,7 @@ public class BufferedStreamManagerReader : Stream
 
     public ReaderMode Mode { get; set; }
 
-    internal BufferedStreamManagerReader(BufferedStreamManagerReaderArgs args, ReaderMode mode = ReaderMode.Wait)
+    internal MemoryMappedStreamManagerReader(MemoryMappedStreamManagerReaderArgs args, ReaderMode mode = ReaderMode.Wait)
     {
         this.getBuffered = args.GetBuffered;
         this.readAwaiter = args.ReadAwaiter;
@@ -46,8 +46,8 @@ public class BufferedStreamManagerReader : Stream
     {
         return this.Mode switch
         {
-            ReaderMode.Kick => KickReadAsync(buffer, cancellatinoToken),
-            ReaderMode.Wait => WaitReadAsync(buffer, cancellatinoToken),
+            ReaderMode.Kick => this.KickReadAsync(buffer, cancellatinoToken),
+            ReaderMode.Wait => this.WaitReadAsync(buffer, cancellatinoToken),
             _ => throw new NotImplementedException()
         };
     }

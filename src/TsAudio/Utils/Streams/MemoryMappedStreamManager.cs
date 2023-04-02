@@ -8,13 +8,13 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Streams;
 
-public class BufferedStreamManager
+public class MemoryMappedStreamManager : IStreamManager
 {
     private readonly MemoryMappedFile memoryMapped;
     private readonly MemoryMappedViewStream writer;
     private readonly ManualResetEventSlim writeAwaiter = new(true);
     private readonly ManualResetEventSlim readAwaiter = new(false);
-    private readonly ConcurrentBag<WeakReference<BufferedStreamManagerReader>> readers = new ConcurrentBag<WeakReference<BufferedStreamManagerReader>>();
+    private readonly ConcurrentBag<WeakReference<MemoryMappedStreamManagerReader>> readers = new ConcurrentBag<WeakReference<MemoryMappedStreamManagerReader>>();
 
     private long advance;
     public long Advance 
@@ -42,12 +42,12 @@ public class BufferedStreamManager
 
     public BufferingOptions BufferingOptions { get; }
 
-    public BufferedStreamManager(long capcity, BufferingOptions bufferingOptions = null) : this(null, capcity, bufferingOptions)
+    public MemoryMappedStreamManager(long capcity, BufferingOptions bufferingOptions = null) : this(null, capcity, bufferingOptions)
     {
 
     }
 
-    public BufferedStreamManager(string name, long capacity, BufferingOptions bufferingOptions = null)
+    public MemoryMappedStreamManager(string name, long capacity, BufferingOptions bufferingOptions = null)
     {
         this.memoryMapped = MemoryMappedFile.CreateNew(name, capacity);
         this.writer = this.memoryMapped.CreateViewStream(0, capacity, MemoryMappedFileAccess.Write);
@@ -84,13 +84,13 @@ public class BufferedStreamManager
             }
             finally
             {
-                await this.FlushAsync(cancellationToken);
+                await this.FlushAsync();
                 ArrayPool<byte>.Shared.Return(buffer);
             }
         }, cancellationToken);
     }
 
-    public Task FlushAsync(CancellationToken cancellationToken)
+    public Task FlushAsync(CancellationToken cancellationToken = default)
     {
         return this.writer.FlushAsync(cancellationToken);
     }
@@ -117,9 +117,9 @@ public class BufferedStreamManager
         }
     }
 
-    public ValueTask<BufferedStreamManagerReader> GetBufferedStreamManagerReaderAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
+    public ValueTask<Stream> GetStreamAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
     {
-        var args = new BufferedStreamManagerReaderArgs()
+        var args = new MemoryMappedStreamManagerReaderArgs()
         {
             ReadAwaiter = this.readAwaiter,
             SetAdvance = (value) => this.Advance = value,
@@ -127,8 +127,8 @@ public class BufferedStreamManager
             GetBuffered = () => this.Buffered,
             Reader = this.memoryMapped.CreateViewStream(0, this.Capacity, MemoryMappedFileAccess.Read)
         };
-        var reader = new BufferedStreamManagerReader(args, mode);
-        return new ValueTask<BufferedStreamManagerReader>(reader);
+        var reader = new MemoryMappedStreamManagerReader(args, mode);
+        return new ValueTask<Stream>(reader);
     }
 
     public void Dispose()

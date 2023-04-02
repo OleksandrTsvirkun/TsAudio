@@ -4,30 +4,24 @@ using System.Threading.Tasks;
 
 using TsAudio.Wave.WaveProviders;
 
-namespace TsAudio.Wave.WaveStreams
+namespace TsAudio.Wave.WaveStreams;
+
+public interface IWaveStream : IWaveProvider, IAsyncDisposable
 {
-    public interface IWaveStream : IWaveProvider, IAsyncDisposable, IDisposable
-    {
-        /// <summary>
-        /// Returns Position in Sample bytes
-        /// </summary>
-        long Position { get; }
+    /// <summary>
+    /// Returns SampleCount
+    /// </summary>
+    long? TotalSamples { get; }
 
-        /// <summary>
-        /// Returns Length in Sample bytes
-        /// </summary>
-        long Length { get; }
+    long Position { get; }
 
-        TimeSpan TotalTime { get; }
+    ValueTask InitAsync(CancellationToken cancellationToken = default);
 
-        TimeSpan CurrentTime { get;  }
-
-        int BlockAlign { get; }
-
-        ValueTask InitAsync(CancellationToken cancellationToken = default);
-
-        ValueTask ChangePositionAsync(long position, CancellationToken cancellationToken = default);
-
-        ValueTask ChangePositionAsync(TimeSpan time, CancellationToken cancellationToken = default);
-    }
+    /// <summary>
+    /// 
+    /// </summary>
+    /// <param name="position">Position in samples</param>
+    /// <param name="cancellationToken"></param>
+    /// <returns></returns>
+    ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default);
 }

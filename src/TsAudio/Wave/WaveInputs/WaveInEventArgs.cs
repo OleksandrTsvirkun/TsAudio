@@ -1,34 +1,22 @@
 ﻿using System;
 
-namespace TsAudio.Wave.WaveInputs
+namespace TsAudio.Wave.WaveInputs;
+
+/// <summary>
+/// Event Args for WaveInStream event
+/// </summary>
+public class WaveInEventArgs : EventArgs
 {
     /// <summary>
-    /// Event Args for WaveInStream event
+    /// Buffer containing recorded data.
     /// </summary>
-    public class WaveInEventArgs : EventArgs
+    public ReadOnlyMemory<byte> Data { get; }
+
+    /// <summary>
+    /// Creates new WaveInEventArgs
+    /// </summary>
+    public WaveInEventArgs(ReadOnlyMemory<byte> data)
     {
-        private byte[] buffer;
-        private int bytes;
-
-
-        /// <summary>
-        /// Buffer containing recorded data. Note that it might not be completely
-        /// full. <seealso cref="BytesRecorded"/>
-        /// </summary>
-        public byte[] Buffer => buffer;
-
-        /// <summary>
-        /// The number of recorded bytes in Buffer. <seealso cref="Buffer"/>
-        /// </summary>
-        public int BytesRecorded => bytes;
-
-        /// <summary>
-        /// Creates new WaveInEventArgs
-        /// </summary>
-        public WaveInEventArgs(byte[] buffer, int bytes)
-        {
-            this.buffer = buffer;
-            this.bytes = bytes;
-        }
+        this.Data = data;
     }
 }

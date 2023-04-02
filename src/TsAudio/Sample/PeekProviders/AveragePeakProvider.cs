@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Linq;
 using System.Numerics;
 using System.Runtime.CompilerServices;
 using System.Threading;
@@ -10,8 +9,6 @@ namespace TsAudio.Sample.PeekProviders;
 public class AveragePeakProvider : PeakProvider
 {
     private readonly float scale;
-
-    public CancellationToken CancellationToken { get; set; }
 
     public AveragePeakProvider(float scale = 1f)
     {
@@ -28,15 +25,15 @@ public class AveragePeakProvider : PeakProvider
             return false;
         }
 
-        this.Current = this.CalculatePeak(read);
+        var memory = this.BufferOwner.Memory.Slice(0, read);
+
+        this.Current = this.CalculatePeak(memory.Span);
 
         return true;
     }
 
-    private PeakInfo CalculatePeak(int count)
+    private PeakInfo CalculatePeak(ReadOnlySpan<float> span)
     {
-        var span = this.BufferOwner.Memory.Span.Slice(0, count);
-
         var left = 0.0f;
         var right = 0.0f;
         var length = span.Length / 2;
@@ -54,7 +51,7 @@ public class AveragePeakProvider : PeakProvider
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void CalculatePeaksScalared(Span<float> span, ref float left, ref float right, int length)
+    private void CalculatePeaksScalared(ReadOnlySpan<float> span, ref float left, ref float right, int length)
     {
         for(int i = 0; i < span.Length - 1;)
         {
@@ -67,13 +64,14 @@ public class AveragePeakProvider : PeakProvider
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    private void CalculatePeaksVectorized(Span<float> span, out float left, out float right, int length)
+    private void CalculatePeaksVectorized(ReadOnlySpan<float> span, out float left, out float right, int length)
     {
         var sample = Vector4.Zero;
 
-        for(int i = 0; i < span.Length - 4;)
+        for(int i = 0; i < span.Length - 4; i += 4)
         {
-            sample += new Vector4(Math.Abs(span[i++]), Math.Abs(span[i++]), Math.Abs(span[i++]), Math.Abs(span[i++]));
+            var vector = new Vector4(span.Slice(i, 4));
+            sample += Vector4.Abs(vector);
         }
 
         right = this.scale * ((sample.Y + sample.W) / length);
