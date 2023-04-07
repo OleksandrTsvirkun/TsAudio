@@ -178,7 +178,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public void Pause()
     {
-        if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Playing)
+        if(this.PlaybackState != TsAudio.Wave.WaveOutputs.PlaybackState.Playing)
         {
             return;
         }
