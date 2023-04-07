@@ -1,4 +1,5 @@
-﻿using System.Buffers;
+﻿using System;
+using System.Buffers;
 using System.Threading;
 using System.Threading.Tasks;
 
@@ -37,9 +38,17 @@ public abstract class PeakProvider : IPeakProvider
 
     public abstract ValueTask<bool> MoveNextAsync();
 
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
+        if(this.Provider is IAsyncDisposable asyncDisposable)
+        {
+            await asyncDisposable.DisposeAsync();
+        }
+        else if(this.Provider is IDisposable disposable)
+        {
+            disposable.Dispose();
+        }
+
         this.BufferOwner.Dispose();
-        return default;
     }
 }
