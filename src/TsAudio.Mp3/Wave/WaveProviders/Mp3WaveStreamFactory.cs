@@ -144,7 +144,7 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
         ArgumentNullException.ThrowIfNull(nameof(framesEnumerator));
         ArgumentNullException.ThrowIfNull(nameof(reader));
 
-        return Task.Factory.StartNew(async () =>
+        return Task.Run(async () =>
         {
             try
             {
@@ -152,11 +152,6 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
                 {
                     var index = framesEnumerator.Current;
                     this.indices.Add(index);
-                    this.consumeWaiter.Set();
-                }
-
-                foreach(var reader in this.waveStreams)
-                {
                     this.consumeWaiter.Set();
                 }
             }
@@ -169,7 +164,7 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
                 await framesEnumerator.DisposeAsync();
                 await reader.DisposeAsync();
             }
-        }, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
+        }, cancellationToken);
     }
 
     public void Dispose()
