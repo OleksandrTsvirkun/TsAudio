@@ -1,6 +1,7 @@
-﻿using TsAudio.Decoders.Mp3;
+﻿using System.Buffers;
+
+using TsAudio.Decoders.Mp3;
 using TsAudio.Formats.Mp3;
-using TsAudio.Utils.Memory;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveProviders;
@@ -27,7 +28,7 @@ public class Mp3FrameDecompressor : IMp3FrameDecompressor
         this.frame = new Mp3FrameWrapper();
     }
 
-    public MemoryOwner<byte> DecompressFrame(Mp3Frame frame)
+    public IMemoryOwner<byte> DecompressFrame(Mp3Frame frame)
     {
         this.frame.WrappedFrame = frame;
         return this.decoder.DecodeFrame(this.frame);

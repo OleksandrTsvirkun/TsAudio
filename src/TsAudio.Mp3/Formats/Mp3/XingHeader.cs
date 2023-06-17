@@ -18,6 +18,9 @@ public class XingHeader
         VbrScale = 8
     }
 
+    private static ReadOnlyMemory<byte> Xing = new byte[] { (byte)'X', (byte)'i', (byte)'n', (byte)'g' };
+    private static ReadOnlyMemory<byte> Info = new  byte[] { (byte)'I', (byte)'n', (byte)'f', (byte)'o' };
+
     private static int[] sr_table = { 44100, 48000, 32000, 99999 };
 
     /// <summary>
@@ -25,12 +28,70 @@ public class XingHeader
     /// </summary>
     /// <param name="frame">Frame</param>
     /// <returns>Xing Header</returns>
-    public static XingHeader LoadXingHeader(Mp3Frame frame)
+    public static XingHeader? LoadXingHeader(Mp3Frame frame)
     {
-        XingHeader xingHeader = new XingHeader();
-        xingHeader.frame = frame;
         int offset = 0;
 
+        var isMpeg = TrySetOffset(frame, ref offset);
+
+        if(!isMpeg)
+        {
+            return null;
+        }
+
+        var span = frame.RawData.Memory.Span;
+
+        var startOffset = -1;
+        var hasStartOffset = TryGetStartOffset(ref offset, span, ref startOffset);
+
+        if (!hasStartOffset)
+        {
+            return null;
+        }
+
+        var flags = (XingHeaderOptions)span.Slice(offset, sizeof(int)).ToBigEndianInt32();
+        offset += 4;
+
+        var framesOffset = GetFramesOffset(flags, ref offset);
+        var bytesOffset = GetBytesOffset(flags, ref offset);
+        var tocOffset = GetTocOffset(flags, ref offset);
+        var vbrScale = GetVbrScale(flags, ref offset, span);
+        var endOffset = offset;
+
+        return new XingHeader() 
+        { 
+            bytesOffset = bytesOffset,
+            startOffset = startOffset,
+            endOffset = endOffset,
+            frame = frame,
+            framesOffset = framesOffset,
+            tocOffset = tocOffset,
+            vbrScale = vbrScale,
+        };
+    }
+
+    private static bool TryGetStartOffset(ref int offset, Span<byte> span, ref int startOffset)
+    {
+        if(span.Slice(offset, 4).SequenceEqual(Xing.Span))
+        {
+            startOffset = offset;
+            offset += 4;
+        }
+        else if(span.Slice(offset, 4).SequenceEqual(Info.Span))
+        {
+            startOffset = offset;
+            offset += 4;
+        }
+        else
+        {
+            return false;
+        }
+
+        return true;
+    }
+
+    private static bool TrySetOffset(Mp3Frame frame, ref int offset)
+    {
         if(frame.MpegVersion == MpegVersion.Version1)
         {
             if(frame.ChannelMode != ChannelMode.Mono)
@@ -47,52 +108,58 @@ public class XingHeader
         }
         else
         {
-            return null;
-            // throw new FormatException("Unsupported MPEG Version");
+            return false;
         }
 
-        ReadOnlySpan<byte> Xing = stackalloc byte[] { (byte)'X', (byte)'i', (byte)'n', (byte)'g' };
-        ReadOnlySpan<byte> Info = stackalloc byte[] { (byte)'I', (byte)'n', (byte)'f', (byte)'o' };
-        if(frame.RawData.Memory.Span.Slice(offset, 4).SequenceEqual(Xing))
-        {
-            xingHeader.startOffset = offset;
-            offset += 4;
-        }
-        else if(frame.RawData.Memory.Span.Slice(offset, 4).SequenceEqual(Info))
-        {
-            xingHeader.startOffset = offset;
-            offset += 4;
-        }
-        else
-        {
-            return null;
-        }
+        return true;
+    }
 
-        XingHeaderOptions flags = (XingHeaderOptions)frame.RawData.Memory.Span.Slice(offset, sizeof(int)).ToBigEndianInt32();
-        offset += 4;
-
-        if((flags & XingHeaderOptions.Frames) != 0)
-        {
-            xingHeader.framesOffset = offset;
-            offset += 4;
-        }
-        if((flags & XingHeaderOptions.Bytes) != 0)
-        {
-            xingHeader.bytesOffset = offset;
-            offset += 4;
-        }
-        if((flags & XingHeaderOptions.Toc) != 0)
-        {
-            xingHeader.tocOffset = offset;
-            offset += 100;
-        }
+    private static int GetVbrScale(XingHeaderOptions flags, ref int offset, Span<byte> span)
+    {
+        var vbrScale = 0;
         if((flags & XingHeaderOptions.VbrScale) != 0)
         {
-            xingHeader.vbrScale = frame.RawData.Memory.Span.Slice(offset, sizeof(int)).ToBigEndianInt32();
+            vbrScale = span.Slice(offset, sizeof(int)).ToBigEndianInt32();
             offset += 4;
         }
-        xingHeader.endOffset = offset;
-        return xingHeader;
+
+        return vbrScale;
+    }
+
+    private static int GetTocOffset(XingHeaderOptions flags, ref int offset)
+    {
+        var tocOffset = 0;
+        if((flags & XingHeaderOptions.Toc) != 0)
+        {
+            tocOffset = offset;
+            offset += 100;
+        }
+
+        return tocOffset;
+    }
+
+    private static int GetBytesOffset( XingHeaderOptions flags, ref int offset)
+    {
+        var bytesOffset = 0;
+        if((flags & XingHeaderOptions.Bytes) != 0)
+        {
+            bytesOffset = offset;
+            offset += 4;
+        }
+
+        return bytesOffset;
+    }
+
+    private static int GetFramesOffset(XingHeaderOptions flags, ref int offset)
+    {
+        var framesOffset = 0;
+        if((flags & XingHeaderOptions.Frames) != 0)
+        {
+            framesOffset = offset;
+            offset += 4;
+        }
+
+        return framesOffset;
     }
 
     private int vbrScale = -1;

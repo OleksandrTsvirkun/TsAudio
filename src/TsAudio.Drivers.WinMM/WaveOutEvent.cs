@@ -6,6 +6,7 @@ using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveProviders;
 using System.Threading.Tasks;
+using System.Windows;
 
 namespace TsAudio.Drivers.WinMM;
 
@@ -22,7 +23,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     private IWaveProvider waveProvider;
     private AutoResetEvent callbackEvent;
     private CancellationTokenSource cancellationTokenSource;
-
+    private Task playing;
 
     private volatile PlaybackState playbackState;
 
@@ -162,7 +163,8 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.callbackEvent.Set(); // give the thread a kick
                 this.RenewCancelationToken();
 
-                Task.Run(this.DoPlaybackWrapper, this.cancellationTokenSource.Token);
+                this.playing?.Dispose();
+                this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cancellationTokenSource.Token, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
 
             }
             else if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)

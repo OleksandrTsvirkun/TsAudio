@@ -1,13 +1,12 @@
 using System;
-
-using TsAudio.Utils.Memory;
+using System.Buffers;
 
 namespace TsAudio.Formats.Mp3;
 
 /// <summary>
 /// Represents an MP3 Frame
 /// </summary>
-public record struct Mp3Frame : IDisposable
+public class Mp3FrameHeader
 {
     public const int MaxFrameLength = 16 * 1024;
     
@@ -19,17 +18,12 @@ public record struct Mp3Frame : IDisposable
     /// <summary>
     /// Frame length in bytes
     /// </summary>
-    public int FrameLength { get; internal set; }
+    public ushort FrameLength { get; internal set; }
 
     /// <summary>
     /// Bit Rate
     /// </summary>
     public int BitRate { get; internal set; }
-
-    /// <summary>
-    /// Raw frame data (includes header bytes)
-    /// </summary>
-    public MemoryOwner<byte> RawData { get; internal set; }
 
     /// <summary>
     /// MPEG Version
@@ -49,7 +43,7 @@ public record struct Mp3Frame : IDisposable
     /// <summary>
     /// The number of samples in this frame
     /// </summary>
-    public int SampleCount { get; internal set; }
+    public ushort SampleCount { get; internal set; }
 
     /// <summary>
     /// The channel extension bits
@@ -71,8 +65,18 @@ public record struct Mp3Frame : IDisposable
     /// </summary>
     public bool CrcPresent { get; internal set; }
 
+
+}
+
+public class Mp3Frame : Mp3FrameHeader, IDisposable
+{
+    /// <summary>
+    /// Raw frame data (includes header bytes)
+    /// </summary>
+    public IMemoryOwner<byte> RawData { get; internal set; }
+
     public void Dispose()
     {
-        this.RawData.Dispose();
+        this.RawData?.Dispose();
     }
 }

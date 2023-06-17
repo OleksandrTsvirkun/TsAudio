@@ -8,7 +8,7 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Streams;
 
-public class MemoryMappedStreamManager : IStreamManager
+public class MemoryMappedStreamManager : IStreamManager, IDisposable
 {
     private readonly MemoryMappedFile memoryMapped;
     private readonly MemoryMappedViewStream writer;

@@ -11,6 +11,7 @@ using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
 using System.IO;
 using TsAudio.Utils;
+using TsAudio.Utils.Threading;
 
 namespace TsAudio.Wave.WaveProviders;
 
@@ -100,14 +101,14 @@ public class Mp3WaveStream : WaveStream
 
                     var frame = await this.frameFactory.LoadFrameAsync(this.reader, index, cancellationToken);
 
-                    if(!frame.HasValue)
+                    if(frame is null)
                     {
                         continue;
                     }
 
-                    using var samples = this.decompressor.DecompressFrame(frame.Value);
+                    using var samples = this.decompressor.DecompressFrame(frame);
 
-                    await this.waveProvider.WriteAsync(samples, cancellationToken);
+                    await this.waveProvider.WriteAsync(samples.Memory, cancellationToken);
                 }
                 catch(OperationCanceledException)
                 {
@@ -131,7 +132,7 @@ public class Mp3WaveStream : WaveStream
                 }
 
             }
-        }, cancellationToken, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning, TaskScheduler.Default);
+        }, cancellationToken, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
     }
 
     protected override void Dispose(bool disposing)
@@ -147,7 +148,7 @@ public class Mp3WaveStream : WaveStream
 
         var last = this.indices.LastOrDefault();
 
-        position =  Math.Clamp(position, 0, last.SamplePosition + last.SampleCount);
+        position = Math.Clamp(position, 0, last.SamplePosition + last.SampleCount);
 
         if(position == 0)
         {
@@ -155,23 +156,7 @@ public class Mp3WaveStream : WaveStream
             return;
         }
 
-        var minIndex = 0;
-        var maxIndex = this.indices.Count - 1;
-        var midIndex = (minIndex + maxIndex) / 2;
-
-        while(minIndex <= maxIndex)
-        {
-            midIndex = (minIndex + maxIndex) / 2;
-
-            if(position < indices[midIndex].SamplePosition)
-            {
-                maxIndex = midIndex - 1;
-            }
-            else
-            {
-                minIndex = midIndex + 1;
-            }
-        }
+        var midIndex = this.indices.IndexOfNear(position, static x => x.SamplePosition);
 
         this.index = Math.Max(0, midIndex - 2);
         await this.waveProvider.ResetAsync();

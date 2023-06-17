@@ -1,7 +1,7 @@
 ﻿using System;
+using System.Buffers;
 
 using TsAudio.Formats.Mp3;
-using TsAudio.Utils.Memory;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveProviders;
@@ -21,7 +21,7 @@ public interface IMp3FrameDecompressor : IDisposable
     /// </summary>
     /// <param name="frame">Frame to decompress</param>
     /// <returns>Bytes written to output buffer</returns>
-    MemoryOwner<byte> DecompressFrame(Mp3Frame frame);
+    IMemoryOwner<byte> DecompressFrame(Mp3Frame frame);
 
     /// <summary>
     /// Tell the decoder that we have repositioned

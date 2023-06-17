@@ -28,6 +28,8 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
 
     public Task Analyzing => this.analyzing ?? throw new Exception("Must call init first.");
 
+    public IList<Mp3Index> Indices => this.indices ?? throw new Exception();
+
     public Mp3WaveFormat Mp3WaveFormat => this.mp3WaveFormat ?? throw new Exception("Must call init first.");
 
     public long SampleCount
@@ -64,24 +66,24 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
 
         var indicesReader = await this.bufferedStreamManager.GetStreamAsync(cancellationToken: cancellationToken);
 
-        var framesEnumerator = this.frameFactory.LoadFrameIndicesAsync(indicesReader, cancellationToken).GetAsyncEnumerator(cancellationToken);
+        var framesEnumerator = this.frameFactory.LoadFrameIndicesAsync(indicesReader, 4096, cancellationToken).GetAsyncEnumerator(cancellationToken);
 
-        var frame = await this.ReadFirstFrameAsync(framesEnumerator, cancellationToken);    
+        var first = await this.ReadFirstFrameAsync(framesEnumerator, cancellationToken);    
 
-        this.mp3WaveFormat = new Mp3WaveFormat(frame.SampleRate,
-                                                frame.ChannelMode == ChannelMode.Mono ? 1 : 2,
-                                                frame.FrameLength,
-                                                frame.BitRate);
+        this.mp3WaveFormat = new Mp3WaveFormat(first.Frame.SampleRate,
+                                                first.Frame.ChannelMode == ChannelMode.Mono ? 1 : 2,
+                                                first.Frame.FrameLength,
+                                                first.Frame.BitRate);
 
         this.analyzing = this.ParseAsync(framesEnumerator, indicesReader, cancellationToken);
     }
 
-    private async ValueTask<Mp3Frame> ReadFirstFrameAsync(IAsyncEnumerator<Mp3Index> framesEnumerator, CancellationToken cancellationToken = default)
+    private async ValueTask<(Mp3FrameHeader Frame, Mp3Index Index)> ReadFirstFrameAsync(IAsyncEnumerator<(Mp3FrameHeader Frame, Mp3Index Index)> framesEnumerator, CancellationToken cancellationToken = default)
     {
-        using var framesReader = await this.bufferedStreamManager.GetStreamAsync(ReaderMode.Kick, cancellationToken);
-
-        var first = await this.LoadFrameAsync(framesEnumerator, framesReader, cancellationToken);
-        var second = await this.LoadFrameAsync(framesEnumerator, framesReader, cancellationToken);
+        await framesEnumerator.MoveNextAsync();
+        var first = framesEnumerator.Current;
+        await framesEnumerator.MoveNextAsync();
+        var second = framesEnumerator.Current;
 
         if(first.Frame.SampleRate != second.Frame.SampleRate
             || first.Frame.ChannelMode != second.Frame.ChannelMode)
@@ -96,10 +98,10 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
 
         this.indices.Add(second.Index);
 
-        return first.Frame;
+        return first;
     }
 
-    private async ValueTask<(Mp3Index Index, Mp3Frame Frame)> LoadFrameAsync(IAsyncEnumerator<Mp3Index> framesEnumerator, Stream reader, CancellationToken cancellationToken = default)
+    private async ValueTask<(Mp3Frame Frame, Mp3Index Index)> LoadFrameAsync(IAsyncEnumerator<(Mp3Frame Frame, Mp3Index Index)> framesEnumerator, Stream reader, CancellationToken cancellationToken = default)
     {
         var hasFrames = await framesEnumerator.MoveNextAsync(cancellationToken);
 
@@ -108,15 +110,12 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
             throw new InvalidOperationException("Stream does not contain Mp3Frames");
         }
 
-        var firstFrameIndex = framesEnumerator.Current;
-        var firstFrame = await this.frameFactory.LoadFrameAsync(reader, firstFrameIndex, cancellationToken);
-
-        if(!firstFrame.HasValue)
+        if(framesEnumerator.Current.Frame is null)
         {
             throw new InvalidOperationException("Stream does not contain Mp3Frames");
         }
 
-        return (firstFrameIndex, firstFrame.Value);
+        return framesEnumerator.Current;
     }
 
     public async ValueTask<IWaveStream> GetWaveStreamAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
@@ -139,7 +138,7 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
         return waveProvider;
     }
 
-    private Task ParseAsync(IAsyncEnumerator<Mp3Index> framesEnumerator, Stream reader, CancellationToken cancellationToken = default)
+    private Task ParseAsync(IAsyncEnumerator<(Mp3FrameHeader Frame, Mp3Index Index)> framesEnumerator, Stream reader, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(nameof(framesEnumerator));
         ArgumentNullException.ThrowIfNull(nameof(reader));
@@ -151,7 +150,7 @@ public sealed class Mp3WaveStreamFactory : IWaveStreamFactory
                 while (await framesEnumerator.WithCancellation(cancellationToken).MoveNextAsync(cancellationToken))
                 {
                     var index = framesEnumerator.Current;
-                    this.indices.Add(index);
+                    this.indices.Add(index.Index);
                     this.consumeWaiter.Set();
                 }
             }

@@ -5,7 +5,7 @@ using System.Threading.Tasks;
 
 using TsAudio.Wave.WaveFormats;
 
-using TsAudio.Utils;
+using TsAudio.Utils.Threading;
 
 namespace TsAudio.Wave.WaveProviders;
 

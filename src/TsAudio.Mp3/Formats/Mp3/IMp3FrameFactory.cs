@@ -7,9 +7,7 @@ namespace TsAudio.Formats.Mp3;
 
 public interface IMp3FrameFactory
 {
-    IAsyncEnumerable<Mp3Index> LoadFrameIndicesAsync(Stream stream, CancellationToken cancellationToken = default);
-
-    IAsyncEnumerable<Mp3Frame> LoadFramesAsync(Stream stream, CancellationToken cancellationToken = default);
+    IAsyncEnumerable<(Mp3FrameHeader Frame, Mp3Index Index)> LoadFrameIndicesAsync(Stream stream, int bufferSize = 4096, CancellationToken cancellationToken = default);
 
     ValueTask<Mp3Frame?> LoadFrameAsync(Stream stream, Mp3Index index, CancellationToken cancellationToken = default);
 }
