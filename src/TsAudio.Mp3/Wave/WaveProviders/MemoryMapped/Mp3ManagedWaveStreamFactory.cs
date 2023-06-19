@@ -114,6 +114,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
             Mp3WaveFormat = this.Mp3WaveFormat,
             Analyzing = this.Analyzing,
             Reader = reader,
+            BufferSize = ushort.MaxValue,
         };
 
         var waveProvider = new Mp3ManagedWaveStream(args);

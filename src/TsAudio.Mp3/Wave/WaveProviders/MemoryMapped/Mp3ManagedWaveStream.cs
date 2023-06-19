@@ -12,7 +12,7 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
 
     public override long? TotalSamples { get; }
 
-    internal Mp3ManagedWaveStream(Mp3ManagedWaveStreamArgs args) : base(args.Reader, args.FrameFactory)
+    internal Mp3ManagedWaveStream(Mp3ManagedWaveStreamArgs args) : base(args.Reader, args.BufferSize, args.FrameFactory)
     {
         this.indices = args.Indices;
         this.mp3WaveFormat = args.Mp3WaveFormat;

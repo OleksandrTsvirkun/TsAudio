@@ -38,7 +38,7 @@ public class Mp3FileWaveStream : Mp3WaveStream
         }
     }
 
-    public Mp3FileWaveStream(Stream stream, IMp3FrameFactory? frameFactory = null) : base(stream, frameFactory)
+    public Mp3FileWaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null) : base(stream, bufferSize, frameFactory)
     {
     }
 
@@ -62,7 +62,7 @@ public class Mp3FileWaveStream : Mp3WaveStream
 
         this.waveFormat = this.decompressor.WaveFormat;
 
-        this.waveProvider = new BufferedWaveProvider(this.mp3WaveFormat, ushort.MaxValue);
+        this.waveProvider = new BufferedWaveProvider(this.mp3WaveFormat, this.bufferSize);
 
         this.decodeCts = new();
         this.decoding = this.DecodeAsync();

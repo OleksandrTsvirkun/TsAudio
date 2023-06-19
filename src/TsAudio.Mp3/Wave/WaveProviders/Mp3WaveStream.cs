@@ -20,6 +20,8 @@ public abstract class Mp3WaveStream : WaveStream
     protected readonly ManualResetEventSlim waitForDecoding = new(true);
     protected readonly SemaphoreSlim repositionLock = new(1, 1);
 
+    protected readonly int bufferSize; 
+
     protected IWaveBuffer waveProvider;
     protected IMp3FrameDecompressor decompressor;
     protected IReadOnlyList<Mp3Index> indices;
@@ -47,9 +49,10 @@ public abstract class Mp3WaveStream : WaveStream
 
     public virtual Mp3WaveFormat Mp3WaveFormat => this.mp3WaveFormat;
 
-    public Mp3WaveStream(Stream stream, IMp3FrameFactory? frameFactory = null)
+    public Mp3WaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null)
     {
         this.stream = stream;
+        this.bufferSize = bufferSize;
         this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;
     }
 
@@ -77,7 +80,7 @@ public abstract class Mp3WaveStream : WaveStream
         var midIndex = this.indices.IndexOfNear(position, static x => x.SamplePosition);
 
         this.index = Math.Max(0, midIndex - 2);
-        await this.waveProvider.ResetAsync();
+        await this.waveProvider.ResetAsync(cancellationToken);
         this.decompressor.Reset();
         this.waitForDecoding.Set();
     }
