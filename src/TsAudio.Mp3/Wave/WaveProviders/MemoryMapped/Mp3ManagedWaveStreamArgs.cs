@@ -23,5 +23,7 @@ internal class Mp3ManagedWaveStreamArgs
     public Stream Reader { get; init; }
 
     public ManualResetEventSlim ParseWait { get; init; }
+
+    public int BufferSize { get; init; }
 }
 
