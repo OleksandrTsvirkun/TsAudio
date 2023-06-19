@@ -1,51 +1,64 @@
-﻿using Microsoft.VisualBasic;
-
-using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
-
+﻿using TsAudio.Utils.Threading;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
-
-using static System.Runtime.InteropServices.JavaScript.JSType;
 
 namespace TsAudio.Wav.Wave.WaveProvider;
 public class WavWaveStream : WaveStream
 {
-    private readonly Stream reader;
+    private readonly Stream stream;
+    private readonly IWavFormatMetadataReader metadataReader;
+    private readonly SemaphoreSlim repositionLock = new(1, 1);
 
-    public override WaveFormat WaveFormat => throw new NotImplementedException();
+    private WavMetadata metadata;
 
-    public override long? TotalSamples => throw new NotImplementedException();
+    public override WaveFormat WaveFormat => this.metadata?.WaveFormat ?? throw new InvalidOperationException("Must call init first.");
 
-    public override long Position => throw new NotImplementedException();
-
-    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public override long? TotalSamples
     {
-        throw new NotImplementedException();
+        get
+        {
+            if(this.metadata is null)
+            {
+                throw new InvalidOperationException("Must call init first.");
+            }
+
+            return this.metadata.DataChuckLength / ((this.WaveFormat.BitsPerSample/ 8) * this.WaveFormat.Channels);
+        }
+    }
+
+    public override long Position
+    {
+        get
+        {
+            if(this.metadata is null)
+            {
+                return 0;
+            }
+
+            return (this.stream.Position - this.metadata.DataChuckPosition) / ((this.WaveFormat.BitsPerSample / 8) * this.WaveFormat.Channels);
+        }
+    }
+
+    public WavWaveStream(Stream stream, IWavFormatMetadataReader? metadataReader = null)
+    {
+        this.stream = stream;
+        this.metadataReader = metadataReader ?? WavFormatMetadataReader.Instance;
+    }
+
+    public override async ValueTask InitAsync(CancellationToken cancellationToken = default)
+    {
+        this.metadata = await this.metadataReader.ReadWavFormatMetadataAsync(this.stream, cancellationToken);
     }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        if(buffer.Length % this.WaveFormat.BlockAlign != 0)
-        {
-            throw new ArgumentException(
-                $"Must read complete blocks: requested {buffer.Length}, block align is {WaveFormat.BlockAlign}");
-        }
-
-        //var position = this.reader.Position - dataPosition;
-        //// sometimes there is more junk at the end of the file past the data chunk
-        //if(position + buffer.Length > dataChunkLength)
-        //{
-        //    buffer = buffer.Slice((int)(dataChunkLength - position));
-        //}
-        return this.reader.ReadAsync(buffer);
+        return this.stream.ReadAsync(buffer, cancellationToken);
     }
 
-    public override ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
+    public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
     {
-        throw new NotImplementedException();
+        using var locker = await this.repositionLock.LockAsync(cancellationToken);
+
+        this.stream.Position = this.metadata.DataChuckPosition + position * ((this.WaveFormat.BitsPerSample / 8) * this.WaveFormat.Channels);
     }
 }
