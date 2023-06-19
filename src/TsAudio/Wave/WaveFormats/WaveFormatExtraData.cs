@@ -25,13 +25,13 @@ namespace TsAudio.Wave.WaveFormats
 
         public static async ValueTask<WaveFormat> FromFormatChunk(Stream reader, int formatChunkLength, CancellationToken cancellationToken = default)
         {
-                        if(formatChunkLength < 16)
+            if(formatChunkLength < 16)
             {
                 throw new InvalidDataException("Invalid WaveFormat Structure");
             }
 
-            using var bufferOwner = MemoryPool<byte>.Shared.Rent(18);
-            var buffer = bufferOwner.Memory.Slice(0, 18);
+            using var bufferOwner = MemoryPool<byte>.Shared.Rent(16);
+            var buffer = bufferOwner.Memory.Slice(0, 16);
 
             await reader.ReadAsync(buffer, cancellationToken);
 
@@ -45,10 +45,11 @@ namespace TsAudio.Wave.WaveFormats
             short extraSize = 0;
             if(formatChunkLength > 16)
             {
-                extraSize = BitConverter.ToInt16(buffer.Span.Slice(16, 2));  //read 2
-                if(extraSize != formatChunkLength - 18)
+                await reader.ReadAsync(buffer.Slice(0, 2), cancellationToken);
+                extraSize = BitConverter.ToInt16(buffer.Span.Slice(0, 2));  //read 2
+                if(extraSize != formatChunkLength - 16)
                 {
-                    extraSize = (short)(formatChunkLength - 18);
+                    extraSize = (short)(formatChunkLength - 16);
                 }
             }
 
