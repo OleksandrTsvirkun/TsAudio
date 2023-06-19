@@ -14,11 +14,9 @@
   </ItemGroup>
 
   <ItemGroup>
-    <PackageReference Include="Collections.Pooled" Version="1.0.82" />
-    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="7.0.2" />
+    <PackageReference Include="Microsoft.Extensions.ObjectPool" Version="7.0.7" />
     <PackageReference Include="System.IO.Pipelines" Version="7.0.0" />
     <PackageReference Include="System.Linq.Async" Version="6.0.1" />
-    <PackageReference Include="System.Reactive" Version="5.0.0" />
   </ItemGroup>
 
   <ItemGroup>

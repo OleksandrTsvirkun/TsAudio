@@ -1,6 +1,4 @@
-﻿using Collections.Pooled;
-
-using System;
+﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
 using System.IO;
@@ -53,7 +51,7 @@ public class Mp3IndexStreamReader : IMp3IndexStreamReader
         {
             var uniqueFrameLengthCount = ReadByte(ref memory);
 
-            uniqueFrameLength = new PooledList<ushort>(uniqueFrameLengthCount);
+            uniqueFrameLength = new List<ushort>(uniqueFrameLengthCount);
 
             for(int i = 0; i < uniqueFrameLengthCount; i++)
             {
