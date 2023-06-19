@@ -29,13 +29,13 @@ public abstract class WaveStream : IWaveStream, IDisposable
     public async ValueTask DisposeAsync()
     {
         await this.DisposeAsyncCore().ConfigureAwait(false);
-        this.Dispose(false);
+        this.Dispose(true);
         GC.SuppressFinalize(this);
     }
 
     protected virtual ValueTask DisposeAsyncCore()
     {
-        return default;
+        return ValueTask.CompletedTask;
     }
 
     protected virtual void Dispose(bool disposing)

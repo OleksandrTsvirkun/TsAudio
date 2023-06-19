@@ -1,6 +1,6 @@
 ﻿namespace TsAudio.Utils.Streams;
 
-public enum ReaderMode
+public enum StreamReadMode
 {
     Kick,
     Wait,

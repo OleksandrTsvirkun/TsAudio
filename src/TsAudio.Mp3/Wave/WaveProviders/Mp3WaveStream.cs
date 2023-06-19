@@ -1,35 +1,35 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Threading;
+using System.Threading.Tasks;
 
 using TsAudio.Formats.Mp3;
-
+using TsAudio.Utils;
+using TsAudio.Utils.Threading;
 using TsAudio.Wave.WaveFormats;
-
 using TsAudio.Wave.WaveStreams;
-using System.IO;
 
 namespace TsAudio.Wave.WaveProviders;
-
-public class Mp3WaveStream : WaveStream
+public abstract class Mp3WaveStream : WaveStream
 {
-    private readonly BufferedWaveProvider waveProvider;
-    private readonly Task parsing;
-    private readonly SemaphoreSlim repositionLock = new(1, 1);
-    private readonly IReadOnlyList<Mp3Index> indices;
-    private readonly IMp3FrameFactory frameFactory;
-    private readonly Stream reader;
-    private readonly ManualResetEventSlim waitForDecoding = new(true);
-    private readonly ManualResetEventSlim waitForParse;
-    private readonly IMp3FrameDecompressor decompressor;
-    private readonly Task decoding;
-    private readonly CancellationTokenSource decodeCancellationTokenSource;
+    protected readonly Stream stream;
+    protected readonly IMp3FrameFactory frameFactory;
+    
+    protected readonly ManualResetEventSlim waitForDecoding = new(true);
+    protected readonly SemaphoreSlim repositionLock = new(1, 1);
 
-    private int index;
+    protected IWaveBuffer waveProvider;
+    protected IMp3FrameDecompressor decompressor;
+    protected IReadOnlyList<Mp3Index> indices;
+    protected CancellationTokenSource decodeCts;
+    protected Task decoding;
+    protected int index;
+    protected Mp3WaveFormat mp3WaveFormat;
+    protected WaveFormat waveFormat;
 
-    public override long? TotalSamples { get; }
+    public override WaveFormat WaveFormat => this.waveFormat;
 
     public override long Position
     {
@@ -45,24 +45,12 @@ public class Mp3WaveStream : WaveStream
         }
     }
 
-    public override WaveFormat WaveFormat { get; }
+    public virtual Mp3WaveFormat Mp3WaveFormat => this.mp3WaveFormat;
 
-    public Mp3WaveFormat Mp3WaveFormat { get; }
-
-    internal Mp3WaveStream(Mp3WaveStreamArgs args)
+    public Mp3WaveStream(Stream stream, IMp3FrameFactory? frameFactory = null)
     {
-        this.reader = args.Reader;
-        this.frameFactory = args.FrameFactory;
-        this.indices = args.Indices;
-        this.Mp3WaveFormat = args.Mp3WaveFormat;
-        this.TotalSamples = args.TotalSamples;
-        this.decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
-        this.WaveFormat = this.decompressor.WaveFormat;
-        this.waveProvider = new BufferedWaveProvider(this.WaveFormat, ushort.MaxValue*4);
-        this.parsing = args.Analyzing;
-        this.waitForParse = args.ParseWait;
-        this.decodeCancellationTokenSource = new();
-        this.decoding = this.DecodeAsync(this.decodeCancellationTokenSource.Token);
+        this.stream = stream;
+        this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;
     }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
@@ -70,126 +58,113 @@ public class Mp3WaveStream : WaveStream
         return this.waveProvider.ReadAsync(buffer, cancellationToken);
     }
 
-    private Task DecodeAsync(CancellationToken cancellationToken = default)
+    public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
     {
-        return Task.Factory.StartNew(async () =>
+        using var locker = await this.repositionLock.LockAsync(cancellationToken);
+
+        this.waitForDecoding.Reset();
+
+        var last = this.indices.LastOrDefault();
+
+        position = Math.Clamp(position, 0, last.SamplePosition + last.SampleCount);
+
+        if(position == 0)
         {
-            while(!cancellationToken.IsCancellationRequested)
-            {
-                try
-                {
-                    this.waitForDecoding.Wait(cancellationToken);
+            this.index = 0;
+            return;
+        }
 
-                    if(this.index >= this.indices.Count)
-                    {
-                        if(this.parsing.IsCompleted)
-                        {
-                            await this.waveProvider.FlushAsync(cancellationToken);
-                            this.waitForDecoding.Reset();
-                        }
-                        else
-                        {
-                            this.waitForParse.Reset();
-                        }
+        var midIndex = this.indices.IndexOfNear(position, static x => x.SamplePosition);
 
-                        continue;
-                    }
+        this.index = Math.Max(0, midIndex - 2);
+        await this.waveProvider.ResetAsync();
+        this.decompressor.Reset();
+        this.waitForDecoding.Set();
+    }
 
-                    var index = this.indices[this.index++];
-
-                    var frame = await this.frameFactory.LoadFrameAsync(this.reader, index, cancellationToken);
-
-                    if(!frame.HasValue)
-                    {
-                        continue;
-                    }
-
-                    using var samples = this.decompressor.DecompressFrame(frame.Value);
-
-                    await this.waveProvider.WriteAsync(samples, cancellationToken);
-                }
-                catch(OperationCanceledException)
-                {
-                    break;
-                }
-                catch(InvalidOperationException ex)
-                {
-                    continue;
-                }
-                catch(InvalidDataException ex)
-                {
-                    continue;
-                }
-                catch(ArgumentOutOfRangeException ex)
-                {
-                    continue;
-                }
-                catch(Exception ex)
-                {
-                    return;
-                }
-
-            }
-        }, cancellationToken, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning, TaskScheduler.Default);
+    protected Task DecodeAsync()
+    {
+        return Task.Factory.StartNew(DecodeAsyncImpl,
+            this.decodeCts.Token, 
+            TaskCreationOptions.AttachedToParent 
+            | TaskCreationOptions.LongRunning, 
+            TaskScheduler.Default)
+            .Unwrap();
     }
 
     protected override void Dispose(bool disposing)
     {
         if(disposing)
         {
-            this.decodeCancellationTokenSource.Cancel();
+            this.decodeCts?.Cancel();
+            this.decodeCts?.Dispose();
+            this.repositionLock.Dispose();
+            this.waitForDecoding.Dispose();
+            this.decompressor?.Dispose();
         }
+
+        base.Dispose(disposing);
     }
 
-    public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
+    protected virtual async Task DecodeAsyncImpl()
     {
-        try
+        var cancellationToken = this.decodeCts.Token;
+
+        if(this.indices.Count == 0)
         {
-            await this.repositionLock.WaitAsync(cancellationToken);
+            throw new ArgumentException("Not found any MP3 frame indices.", nameof(this.indices.Count));
+        }
 
-            this.waitForDecoding.Reset();
-
-            var last = this.indices.LastOrDefault();
-
-            position = Math.Max(Math.Min(position, last.SamplePosition + last.SampleCount), 0);
-
-            if(position == 0)
+        while(!cancellationToken.IsCancellationRequested)
+        {
+            try
             {
-                this.index = 0;
+                if(this.index >= this.indices.Count)
+                {
+                    await this.DecodeExtraWaitAsync(cancellationToken);
+                    continue;
+                }
+
+                var index = this.indices[this.index++];
+
+                var frame = await this.frameFactory.LoadFrameAsync(this.stream, index, cancellationToken);
+
+                if(frame is null)
+                {
+                    continue;
+                }
+
+                using var samples = this.decompressor.DecompressFrame(frame);
+
+                await this.waveProvider.WriteAsync(samples.Memory, cancellationToken);
+            }
+            catch(OperationCanceledException)
+            {
+                return;
+            }
+            catch(InvalidOperationException ex)
+            {
+                continue;
+            }
+            catch(InvalidDataException ex)
+            {
+                continue;
+            }
+            catch(ArgumentOutOfRangeException ex)
+            {
+                continue;
+            }
+            catch(Exception ex)
+            {
                 return;
             }
 
-            var minIndex = 0;
-            var maxIndex = this.indices.Count - 1;
-            var midIndex = (minIndex + maxIndex) / 2;
-
-            while(minIndex <= maxIndex)
-            {
-                midIndex = (minIndex + maxIndex) / 2;
-
-                if(position < indices[midIndex].SamplePosition)
-                {
-                    maxIndex = midIndex - 1;
-                }
-                else
-                {
-                    minIndex = midIndex + 1;
-                }
-            }
-
-            this.index = Math.Max(0, midIndex - 2);
-            await this.waveProvider.ResetAsync();
-            this.decompressor.Reset();
-            this.waitForDecoding.Set();
-        }
-        finally
-        {
-            this.repositionLock.Release();
         }
     }
 
-    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    protected virtual ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
     {
-        return default;
+        this.waitForDecoding.Reset();
+        return this.waitForDecoding.WaitAsync(cancellationToken);
     }
 }

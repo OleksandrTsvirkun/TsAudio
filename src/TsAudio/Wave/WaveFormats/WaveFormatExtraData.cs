@@ -1,8 +1,9 @@
 ﻿using System;
 using System.Runtime.InteropServices;
 using System.IO;
-using TsAudio.Wave.WaveFormats;
-using System.Diagnostics;
+using System.Threading;
+using System.Buffers;
+using System.Threading.Tasks;
 
 namespace TsAudio.Wave.WaveFormats
 {
@@ -22,38 +23,54 @@ namespace TsAudio.Wave.WaveFormats
         public byte[] ExtraData => this.extraData; 
 
 
-        public static WaveFormat FromFormatChunk(BinaryReader reader, int formatChunkLength)
+        public static async ValueTask<WaveFormat> FromFormatChunk(Stream reader, int formatChunkLength, CancellationToken cancellationToken = default)
         {
-            var waveFormat = new WaveFormatExtraData();
-
-            if(formatChunkLength < 16)
+                        if(formatChunkLength < 16)
             {
                 throw new InvalidDataException("Invalid WaveFormat Structure");
             }
 
-            waveFormat.waveFormatTag = (WaveFormatEncoding)reader.ReadUInt16();
-            waveFormat.channels = reader.ReadInt16();
-            waveFormat.sampleRate = reader.ReadInt32();
-            waveFormat.averageBytesPerSecond = reader.ReadInt32();
-            waveFormat.blockAlign = reader.ReadInt16();
-            waveFormat.bitsPerSample = reader.ReadInt16();
+            using var bufferOwner = MemoryPool<byte>.Shared.Rent(18);
+            var buffer = bufferOwner.Memory.Slice(0, 18);
 
+            await reader.ReadAsync(buffer, cancellationToken);
+
+            var waveFormatTag = (WaveFormatEncoding)BitConverter.ToUInt16(buffer.Span.Slice(0, 2)); //read 2
+            var channels = BitConverter.ToInt16(buffer.Span.Slice(2, 2));      //read 2
+            var sampleRate = BitConverter.ToInt32(buffer.Span.Slice(4, 4));     //read 4
+            var averageBytesPerSecond = BitConverter.ToInt32(buffer.Span.Slice(8, 4)); //read 4
+            var blockAlign = BitConverter.ToInt16(buffer.Span.Slice(12, 2)); //read 2
+            var bitsPerSample = BitConverter.ToInt16(buffer.Span.Slice(14, 2)); //read 2
+
+            short extraSize = 0;
             if(formatChunkLength > 16)
             {
-                waveFormat.extraSize = reader.ReadInt16();
-                if(waveFormat.extraSize != formatChunkLength - 18)
+                extraSize = BitConverter.ToInt16(buffer.Span.Slice(16, 2));  //read 2
+                if(extraSize != formatChunkLength - 18)
                 {
-                    Debug.WriteLine("Format chunk mismatch");
-                    waveFormat.extraSize = (short)(formatChunkLength - 18);
+                    extraSize = (short)(formatChunkLength - 18);
                 }
             }
 
-            if(waveFormat.extraSize > 0)
+            var waveFormat = new WaveFormatExtraData() 
             {
-                reader.Read(waveFormat.extraData, 0, waveFormat.extraSize);
+                waveFormatTag = waveFormatTag,
+                channels = channels,
+                sampleRate = sampleRate,
+                averageBytesPerSecond = averageBytesPerSecond,
+                blockAlign = blockAlign,
+                bitsPerSample = bitsPerSample,
+                extraSize = extraSize
+            };
+
+
+            if(extraSize > 0)
+            {
+                await reader.ReadAsync(waveFormat.extraData.AsMemory(0, extraSize), cancellationToken);
             }
 
             return waveFormat;
         }
+
     }
 }

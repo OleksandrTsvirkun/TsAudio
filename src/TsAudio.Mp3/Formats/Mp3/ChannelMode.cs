@@ -1,26 +1,24 @@
-﻿namespace TsAudio.Formats.Mp3
+﻿namespace TsAudio.Formats.Mp3;
+
+/// <summary>
+/// Channel Mode
+/// </summary>
+public enum ChannelMode
 {
     /// <summary>
-    /// Channel Mode
+    /// Stereo
     /// </summary>
-    public enum ChannelMode
-    {
-        /// <summary>
-        /// Stereo
-        /// </summary>
-        Stereo,
-        /// <summary>
-        /// Joint Stereo
-        /// </summary>
-        JointStereo,
-        /// <summary>
-        /// Dual Channel
-        /// </summary>
-        DualChannel,
-        /// <summary>
-        /// Mono
-        /// </summary>
-        Mono
-    }
-
+    Stereo,
+    /// <summary>
+    /// Joint Stereo
+    /// </summary>
+    JointStereo,
+    /// <summary>
+    /// Dual Channel
+    /// </summary>
+    DualChannel,
+    /// <summary>
+    /// Mono
+    /// </summary>
+    Mono
 }

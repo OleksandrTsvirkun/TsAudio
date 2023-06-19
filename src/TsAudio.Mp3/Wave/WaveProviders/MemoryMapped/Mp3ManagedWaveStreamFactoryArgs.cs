@@ -1,8 +1,8 @@
 ﻿using TsAudio.Utils.Streams;
 
-namespace TsAudio.Wave.WaveProviders;
+namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 
-public class Mp3WaveStreamFactoryArgs
+public class Mp3ManagedWaveStreamFactoryArgs
 {
     public IStreamManager StreamManager { get; set; }
 

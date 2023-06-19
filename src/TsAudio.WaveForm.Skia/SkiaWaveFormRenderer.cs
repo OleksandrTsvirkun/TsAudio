@@ -81,6 +81,10 @@ public class SkiaWaveFormRenderer
                     updater();
                 }
             }
+            catch(OperationCanceledException)
+            {
+                canvas.Clear();
+            }
             catch(Exception)
             {
 

@@ -1,26 +1,15 @@
 ﻿using System;
 using System.Buffers;
 using System.Collections.Generic;
-using System.Diagnostics;
 using System.IO;
-using System.IO.Pipelines;
 using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
-
-using TsAudio.Utils.Memory;
 
 namespace TsAudio.Formats.Mp3;
 
 public class Mp3FrameFactory : IMp3FrameFactory
 {
-    enum ParsingState
-    {
-        ReadingHeader,
-        ReadingFrameData,
-        ReturnFrame
-    }
-
     public static readonly Mp3FrameFactory Instance = new Mp3FrameFactory();
 
     private static readonly int[,,] bitRates = new int[,,] {
@@ -55,133 +44,75 @@ public class Mp3FrameFactory : IMp3FrameFactory
     private static readonly int[] sampleRatesVersion2 = new int[] { 22050, 24000, 16000 };
     private static readonly int[] sampleRatesVersion25 = new int[] { 11025, 12000, 8000 };
 
-    private readonly MemoryPool<byte> pool;
+    private readonly MemoryPool<byte> memoryPool;
+    private readonly Mp3FramePool mp3FramePool;
 
-    public Mp3FrameFactory(MemoryPool<byte> memoryPool = null)
+    public Mp3FrameFactory(MemoryPool<byte> memoryPool = null, Mp3FramePool mp3FramePool = null)
     {
-        this.pool = memoryPool ?? MemoryPool<byte>.Shared;
+        this.memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
+        this.mp3FramePool = mp3FramePool ?? new Mp3FramePool();
     }
 
-    public async IAsyncEnumerable<Mp3Frame> LoadFramesAsync(Stream input, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<Mp3FrameIndex> LoadFrameIndicesAsync(Stream input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        var pipeReader = PipeReader.Create(input, new StreamPipeReaderOptions(leaveOpen: true));
-
-        Memory<byte> raw = Memory<byte>.Empty;
-        Mp3Frame? frame = null;
-        ParsingState state = ParsingState.ReadingHeader;
-
-        while(true)
+        var bufferOwner = this.memoryPool.Rent(bufferSize);
+        Memory<byte> memory = default;
+        var samplePosition = 0L;
+        var toSkip = 0;
+        do
         {
-            var result = await pipeReader.ReadAsync(cancellationToken);
-            var buffer = result.Buffer;
+            input.Position += toSkip;
+            toSkip = 0;
 
-            while(!buffer.IsEmpty)
+            var read = await input.ReadAsync(bufferOwner.Memory.Slice(memory.Length), cancellationToken);
+
+            memory = bufferOwner.Memory.Slice(0, memory.Length + read);
+
+            while(this.TryReadFrame(ref memory, out var frame))
             {
-                if(state == ParsingState.ReadingHeader)
+                var streamPosition = input.Position - memory.Length - 4;
+
+                if (memory.Length < frame.FrameLength - 4)
                 {
-                    frame = this.ParseFrameHeader(ref buffer);
-                    if(!frame.Equals(default))
-                    {
-                        state = ParsingState.ReadingFrameData;
-                    }
-                    else if(buffer.Length < 4)
-                    {
-                        pipeReader.AdvanceTo(buffer.Start, buffer.End);
-                        break;
-                    }
+                    toSkip = (frame.FrameLength - 4) - memory.Length;
+
+                    memory = default;
                 }
-                else if(state == ParsingState.ReadingFrameData)
+                else
                 {
-                    this.ReadFrameData(ref raw, in frame, ref state, ref buffer);
-                }
-                else if(state == ParsingState.ReturnFrame)
-                {
-                    state = ParsingState.ReadingHeader;
-                    yield return frame.Value;
+                    memory = memory.Slice(frame.FrameLength - 4);
                 }
 
-                pipeReader.AdvanceTo(buffer.Start, buffer.End);
+
+                var index = new Mp3Index()
+                {
+                    FrameLength = frame.FrameLength,
+                    StreamPosition = streamPosition,
+                    SamplePosition = samplePosition,
+                    SampleCount = frame.SampleCount,
+                };
+
+                samplePosition += frame.SampleCount;
+
+                yield return new Mp3FrameIndex()
+                {
+                    Frame = frame,
+                    Index = index,  
+                };
             }
 
-            if(result.IsCompleted)
-            {
-                break;
-            }
-        }
+            memory.CopyTo(bufferOwner.Memory);
 
-        // Mark the PipeReader as complete.
-        await pipeReader.CompleteAsync();
-    }
+        } while(input.Position < input.Length);
 
-    public async IAsyncEnumerable<Mp3Index> LoadFrameIndicesAsync(Stream input, [EnumeratorCancellation] CancellationToken cancellationToken = default)
-    {
-        var pipeReader = PipeReader.Create(input, new StreamPipeReaderOptions(leaveOpen: true));
-        
-        long rawDataSize = 0;
-        Mp3Frame? frame = null;
-        ParsingState state = ParsingState.ReadingHeader;
-        long samples = 0;
-
-        while(true)
-        {
-            var result = await pipeReader.ReadAsync(cancellationToken);
-            var buffer = result.Buffer;
-
-            while(!buffer.IsEmpty)
-            {
-                if(state == ParsingState.ReadingHeader)
-                {
-                    frame = this.ParseFrameHeader(ref buffer);
-                    if(frame.HasValue)
-                    {
-                        state = ParsingState.ReadingFrameData;
-                    }
-                    else if(buffer.Length < 4)
-                    {
-                        pipeReader.AdvanceTo(buffer.Start, buffer.End);
-                        break;
-                    }
-                }
-                else if(state == ParsingState.ReadingFrameData)
-                {
-                    this.SkipFrameData(ref rawDataSize, in frame, ref state, ref buffer);
-                }
-                else if(state == ParsingState.ReturnFrame)
-                {
-                    state = ParsingState.ReadingHeader;
-
-                    var index = new Mp3Index()
-                    {
-                        FrameLength = frame.Value.FrameLength,
-                        SampleCount = frame.Value.SampleCount,
-                        SamplePosition = samples,
-                        StreamPosition = input.Position - buffer.Length - frame.Value.FrameLength,
-                    };
-
-                    samples += frame.Value.SampleCount;
-                    frame?.Dispose();
-                    yield return index;
-                }
-                
-                pipeReader.AdvanceTo(buffer.Start, buffer.End);
-            }
-
-            if(result.IsCompleted)
-            {
-                break;
-            }
-        }
-
-        // Mark the PipeReader as complete.
-        await pipeReader.CompleteAsync();
     }
 
     public async ValueTask<Mp3Frame?> LoadFrameAsync(Stream stream, Mp3Index index, CancellationToken cancellationToken = default)
     {
         stream.Position = index.StreamPosition;
 
-        var bufferOwner = this.pool.Rent(index.FrameLength);
-        var buffer = bufferOwner.Memory.Slice(0, index.FrameLength);
+        var originalBuffer = this.mp3FramePool.Rent(index.FrameLength);
+        var buffer = originalBuffer.Memory;
 
         var read = await stream.ReadAsync(buffer, cancellationToken);
 
@@ -190,108 +121,51 @@ public class Mp3FrameFactory : IMp3FrameFactory
             return null;
         }
 
-        return ParseFrame(buffer, true);
-    }
-
-    private void ReadFrameData(ref Memory<byte> raw, in Mp3Frame? frame, ref ParsingState state, ref ReadOnlySequence<byte> buffer)
-    {
-        if(raw.Equals(Memory<byte>.Empty))
+        if(this.TryReadFrame(ref buffer, out var frame))
         {
-            raw = frame.Value.RawData.Memory.Slice(4);
+            frame.RawData = originalBuffer;
+            return frame;
         }
 
-        this.ReadFrameRawData(ref buffer, ref raw);
-
-        if(raw.Length == 0)
-        {
-            raw = Memory<byte>.Empty;
-            state = ParsingState.ReturnFrame;
-        }
+        return null;
     }
 
-    private void SkipFrameData(ref long rawDataSize, in Mp3Frame? frame, ref ParsingState state, ref ReadOnlySequence<byte> buffer)
-    {
-        if(rawDataSize == 0)
-        {
-            rawDataSize = frame.Value.RawData.Memory.Length - 4;
-        }
-
-        var toCopy = (int)Math.Min(buffer.Length, rawDataSize);
-        buffer = buffer.Slice(toCopy);
-        rawDataSize -= toCopy;
-
-        if(rawDataSize == 0)
-        {
-            state = ParsingState.ReturnFrame;
-        }
-    }
-
-    private void ReadFrameRawData(ref ReadOnlySequence<byte> buffer, ref Memory<byte> rawData)
-    {
-        var toCopy = (int)Math.Min(buffer.Length, rawData.Length);
-        buffer.Slice(0, toCopy).CopyTo(rawData.Span.Slice(0, toCopy));
-        buffer = buffer.Slice(toCopy);
-        rawData = rawData.Slice(toCopy);
-    }
-
-    private Mp3Frame? ParseFrameHeader(ref ReadOnlySequence<byte> buffer, bool readData = true)
+    private bool TryReadFrame(ref Memory<byte> buffer, out Mp3Frame? frame)
     {
         Span<byte> headerBytes = stackalloc byte[4];
-        Mp3Frame frame = default;
 
         if(buffer.Length < 4)
         {
-            return null;
+            frame = null;
+            return false;
         }
 
-        buffer.Slice(0, 4).CopyTo(headerBytes);
+        buffer.Span.Slice(0, 4).CopyTo(headerBytes);
         buffer = buffer.Slice(4);
 
-        while(!this.TryParseMp3Frame(headerBytes, ref frame))
+        while(!this.TryParseMp3Frame(headerBytes, out frame))
         {
             if(buffer.IsEmpty)
             {
-                return null;
+                return false;
             }
 
             headerBytes.Slice(1, 3).CopyTo(headerBytes);
-            headerBytes[3] = buffer.FirstSpan[0];
+            headerBytes[3] = buffer.Span[0];
             buffer = buffer.Slice(1);
         }
 
-        if(readData)
-        {
-            var memoryOwner = this.pool.Rent(frame.FrameLength);
-            frame.RawData = new MemoryOwner<byte>(memoryOwner, frame.FrameLength);
-            headerBytes.CopyTo(frame.RawData.Memory.Span);
-        }
-
-        return frame;
-    }
-
-    private Mp3Frame? ParseFrame(ReadOnlyMemory<byte> memory, bool readData = false)
-    {
-        var buffer = new ReadOnlySequence<byte>(memory);
-        var frame = this.ParseFrameHeader(ref buffer, readData);
-
-        if(!frame.HasValue)
-        {
-            return default;
-        }
-
-        var raw = frame.Value.RawData.Memory.Slice(4);
-
-        this.ReadFrameRawData(ref buffer, ref raw);
-
-        return frame;
+        return true;
     }
 
     /// <summary>
     /// checks if the four bytes represent a valid header,
     /// if they are, will parse the values into Mp3Frame
     /// </summary>
-    private bool TryParseMp3Frame(ReadOnlySpan<byte> headerBytes, ref Mp3Frame frame)
+    private bool TryParseMp3Frame(ReadOnlySpan<byte> headerBytes, out Mp3Frame? frame)
     {
+        frame = null;
+
         if((headerBytes[0] == 0xFF) && ((headerBytes[1] & 0xE0) == 0xE0))
         {
             var mpegVersion = (MpegVersion)((headerBytes[1] & 0x18) >> 3);
@@ -382,8 +256,8 @@ public class Mp3FrameFactory : IMp3FrameFactory
             frame = new Mp3Frame()
             {
                 BitRate = bitRate,
-                FrameLength = frameLength,
-                SampleCount = sampleCount,
+                FrameLength = (ushort)frameLength,
+                SampleCount = (ushort)sampleCount,
                 BitRateIndex = bitRateIndex,
                 ChannelExtension = channelExtension,
                 ChannelMode = channelMode,
