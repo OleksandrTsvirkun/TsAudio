@@ -6,7 +6,6 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
-
 namespace TsAudio.Formats.Mp3;
 
 public class Mp3FrameFactory : IMp3FrameFactory
@@ -54,7 +53,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
         this.mp3FramePool = mp3FramePool ?? new Mp3FramePool();
     }
 
-    public async IAsyncEnumerable<(Mp3FrameHeader Frame, Mp3Index Index)> LoadFrameIndicesAsync(Stream input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<Mp3FrameIndex> LoadFrameIndicesAsync(Stream input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var bufferOwner = this.memoryPool.Rent(bufferSize);
         Memory<byte> memory = default;
@@ -95,7 +94,11 @@ public class Mp3FrameFactory : IMp3FrameFactory
 
                 samplePosition += frame.SampleCount;
 
-                yield return (Frame: frame, Index: index);
+                yield return new Mp3FrameIndex()
+                {
+                    Frame = frame,
+                    Index = index,  
+                };
             }
 
             memory.CopyTo(bufferOwner.Memory);
@@ -111,47 +114,36 @@ public class Mp3FrameFactory : IMp3FrameFactory
         var originalBuffer = this.mp3FramePool.Rent(index.FrameLength);
         var buffer = originalBuffer.Memory;
 
-        try
+        var read = await stream.ReadAsync(buffer, cancellationToken);
+
+        if(read < index.FrameLength)
         {
-            var read = await stream.ReadAsync(buffer, cancellationToken);
-
-            if(read < index.FrameLength)
-            {
-                return null;
-            }
-
-            if(this.TryReadFrame(ref buffer, out var frame))
-            {
-                frame.RawData = originalBuffer;
-                return frame;
-            }
+            return null;
         }
-        catch(OperationCanceledException ex)
-        {
 
-        }
-        finally
+        if(this.TryReadFrame(ref buffer, out var frame))
         {
-           
+            frame.RawData = originalBuffer;
+            return frame;
         }
 
         return null;
     }
 
-    private bool TryReadFrame(ref Memory<byte> buffer, out Mp3Frame frame)
+    private bool TryReadFrame(ref Memory<byte> buffer, out Mp3Frame? frame)
     {
         Span<byte> headerBytes = stackalloc byte[4];
-        frame = default;
 
         if(buffer.Length < 4)
         {
+            frame = null;
             return false;
         }
 
         buffer.Span.Slice(0, 4).CopyTo(headerBytes);
         buffer = buffer.Slice(4);
 
-        while(!this.TryParseMp3Frame(headerBytes, ref frame))
+        while(!this.TryParseMp3Frame(headerBytes, out frame))
         {
             if(buffer.IsEmpty)
             {
@@ -170,8 +162,10 @@ public class Mp3FrameFactory : IMp3FrameFactory
     /// checks if the four bytes represent a valid header,
     /// if they are, will parse the values into Mp3Frame
     /// </summary>
-    private bool TryParseMp3Frame(ReadOnlySpan<byte> headerBytes, ref Mp3Frame frame)
+    private bool TryParseMp3Frame(ReadOnlySpan<byte> headerBytes, out Mp3Frame? frame)
     {
+        frame = null;
+
         if((headerBytes[0] == 0xFF) && ((headerBytes[1] & 0xE0) == 0xE0))
         {
             var mpegVersion = (MpegVersion)((headerBytes[1] & 0x18) >> 3);

@@ -204,16 +204,17 @@ public class Mp3IndexStreamWriter : IMp3IndexStreamWriter
 
     public void Dispose()
     {
-        if(this.leaveOpen)
-        {
-            return;
-        }
-
-        this.stream.Close();
+        this.DisposeCore();
         this.stream.Dispose();  
     }
 
     public async ValueTask DisposeAsync()
+    {
+        this.DisposeCore();
+        await this.stream.DisposeAsync();
+    }
+
+    private void DisposeCore()
     {
         if(this.leaveOpen)
         {
@@ -221,6 +222,5 @@ public class Mp3IndexStreamWriter : IMp3IndexStreamWriter
         }
 
         this.stream.Close();
-        await this.stream.DisposeAsync();
     }
 }

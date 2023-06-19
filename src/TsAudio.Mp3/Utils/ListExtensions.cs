@@ -5,6 +5,11 @@ using System.Numerics;
 namespace TsAudio.Utils;
 public static class ListExtensions
 {
+    public static bool IsNullOrEmpty<T>(this IReadOnlyCollection<T> collection)
+    {
+        return collection is null || collection.Count == 0;
+    }
+
     public static int IndexOfNear<T, TValue>(this IReadOnlyList<T> list, TValue value, Func<T, TValue> selector)
         where TValue : IComparisonOperators<TValue, TValue, bool>
     {

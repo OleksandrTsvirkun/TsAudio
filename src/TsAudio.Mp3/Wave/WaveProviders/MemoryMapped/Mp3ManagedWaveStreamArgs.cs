@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 using TsAudio.Formats.Mp3;
 using TsAudio.Wave.WaveFormats;
 
-namespace TsAudio.Wave.WaveProviders;
+namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 
-internal class Mp3WaveStreamArgs
+internal class Mp3ManagedWaveStreamArgs
 {
     public IMp3FrameFactory FrameFactory { get; init; }
 

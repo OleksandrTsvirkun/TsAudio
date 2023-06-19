@@ -144,6 +144,18 @@ public class Mp3IndexStreamReader : IMp3IndexStreamReader
         }
     }
 
+    public void Dispose()
+    {
+        this.DisposeCore();
+        this.stream.Dispose();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        this.DisposeCore();
+        await this.stream.DisposeAsync();
+    }
+
     private static byte ReadByte(ref Memory<byte> memory)
     {
         var value = memory.Span.Slice(0, 1)[0];
@@ -205,7 +217,9 @@ public class Mp3IndexStreamReader : IMp3IndexStreamReader
         return memory;
     }
 
-    public void Dispose()
+
+
+    private void DisposeCore()
     {
         this.bufferOwner.Dispose();
 
@@ -215,19 +229,5 @@ public class Mp3IndexStreamReader : IMp3IndexStreamReader
         }
 
         this.stream.Close();
-        this.stream.Dispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        this.bufferOwner.Dispose();
-
-        if(this.leaveOpen)
-        {
-            return;
-        }
-
-        this.stream.Close();
-        await this.stream.DisposeAsync();
     }
 }

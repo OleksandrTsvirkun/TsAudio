@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Threading;
 
-using TsAudio.Wave.WaveProviders;
-
 namespace TsAudio.Utils.Threading;
 
 public struct Holder : IDisposable

@@ -2,7 +2,7 @@
 
 public class BufferingOptions
 {
-    public int PauseWriterThreshold { get; init; }
+    public int PauseWriterThreshold { get; set; }
 
-    public int ResumeWriterThreshold { get; init; }
+    public int ResumeWriterThreshold { get; set; }
 }

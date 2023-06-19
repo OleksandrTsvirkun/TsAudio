@@ -12,7 +12,7 @@ public interface IWaveStreamFactory : IDisposable, IAsyncDisposable
 
     long? TotalSamples { get;  }
 
-    ValueTask<IWaveStream> GetWaveStreamAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default);
+    ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default);
 
     ValueTask InitAsync(CancellationToken cancellationToken = default);
 }

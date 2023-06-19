@@ -17,15 +17,13 @@ public class Mp3FramePool : MemoryPool<byte>
 
     public override IMemoryOwner<byte> Rent(int minBufferSize = -1)
     {
-        if(this.pool.TryGetValue(minBufferSize, out var frames))
+        if(this.pool.TryGetValue(minBufferSize, out var frames) 
+            && frames.TryTake(out var reference) 
+            && reference.TryGetTarget(out var frame)
+            && frame is not null
+            && frame.Memory.Length > 0)
         {
-            if(frames.TryTake(out var reference))
-            {
-                if(reference.TryGetTarget(out var frame))
-                {
-                    return frame;
-                }
-            }
+            return frame;
         }
 
         return new Mp3FrameMemoryOwner(this, new byte[minBufferSize]);

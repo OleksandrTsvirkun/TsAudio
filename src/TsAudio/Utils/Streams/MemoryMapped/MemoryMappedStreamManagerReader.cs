@@ -4,15 +4,12 @@ using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
 
-namespace TsAudio.Utils.Streams;
+namespace TsAudio.Utils.Streams.MemoryMapped;
 
-public class MemoryMappedStreamManagerReader : Stream
+public class MemoryMappedStreamManagerReader : AsyncStream
 {
+    private readonly MemoryMappedStreamManager streamManager;
     private readonly MemoryMappedViewStream reader;
-    private readonly ManualResetEventSlim readAwaiter;
-    private readonly Func<long> getBuffered;
-    private readonly Func<bool> isWritingDone;
-    private readonly Action<long> setAdvance;
 
     private bool disposed;
 
@@ -27,53 +24,30 @@ public class MemoryMappedStreamManagerReader : Stream
     public override long Position
     {
         get => this.reader.Position;
-        set => this.reader.Position = Math.Min(Math.Max(value, 0), this.Length);
+        set => this.reader.Position = Math.Clamp(value, 0, this.Length);
     }
 
-    public ReaderMode Mode { get; set; }
+    public StreamReadMode Mode { get; }
 
-    internal MemoryMappedStreamManagerReader(MemoryMappedStreamManagerReaderArgs args, ReaderMode mode = ReaderMode.Wait)
+    internal MemoryMappedStreamManagerReader(MemoryMappedStreamManager streamManager, StreamReadMode mode = StreamReadMode.Wait)
     {
-        this.getBuffered = args.GetBuffered;
-        this.readAwaiter = args.ReadAwaiter;
-        this.isWritingDone = args.GetWritingIsDone;
-        this.setAdvance = args.SetAdvance;
-        this.reader = args.Reader;
+        this.streamManager = streamManager;
         this.Mode = mode;
+        this.reader = this.streamManager.CreateReader();
     }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellatinoToken = default)
     {
         return this.Mode switch
         {
-            ReaderMode.Kick => this.KickReadAsync(buffer, cancellatinoToken),
-            ReaderMode.Wait => this.WaitReadAsync(buffer, cancellatinoToken),
+            StreamReadMode.Kick => this.KickReadAsync(buffer, cancellatinoToken),
+            StreamReadMode.Wait => this.WaitReadAsync(buffer, cancellatinoToken),
             _ => throw new NotImplementedException()
         };
     }
     public override long Seek(long offset, SeekOrigin origin)
     {
         return this.reader.Seek(offset, origin);
-    }
-
-    public override void Flush()
-    {
-        throw new NotImplementedException();
-    }
-
-    public override int Read(byte[] buffer, int offset, int count)
-    {
-        throw new NotImplementedException();
-    }
-
-    public override void SetLength(long value)
-    {
-        throw new NotImplementedException();
-    }
-
-    public override void Write(byte[] buffer, int offset, int count)
-    {
-        throw new NotImplementedException();
     }
 
     protected override void Dispose(bool disposing)
@@ -83,28 +57,49 @@ public class MemoryMappedStreamManagerReader : Stream
             return;
         }
 
-        base.Dispose(disposing);
         if(disposing)
         {
             this.reader.Dispose();
-            this.disposed = true;
         }
+
+        this.disposed = true;
+    }
+
+    public async override ValueTask DisposeAsync()
+    {
+        if(this.disposed)
+        {
+            return;
+        }
+
+        await this.reader.DisposeAsync();
+        this.disposed = true;
     }
 
     private async ValueTask<int> KickReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        var canRead = (int)Math.Min(buffer.Length, this.Length - this.Position);
+        var canRead = (int)Math.Max(0, Math.Min(buffer.Length, this.Length - this.Position));
 
-        if(canRead == 0 && this.isWritingDone())
+        if(canRead == 0 && this.streamManager.WritingIsDone)
         {
             return 0;
         }
 
         var read = await this.reader.ReadAsync(buffer.Slice(0, canRead), cancellationToken);
 
-        this.setAdvance(this.reader.Position);
+        this.streamManager.Advance(this.reader.Position);
 
         return read;
+    }
+
+    public override Task FlushAsync(CancellationToken cancellationToken)
+    {
+        throw new NotImplementedException();
+    }
+
+    public override ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    {
+        throw new NotImplementedException();
     }
 
     private async ValueTask<int> WaitReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
@@ -114,7 +109,7 @@ public class MemoryMappedStreamManagerReader : Stream
         {
             var readBlock = await this.OneReadAsync(buffer, cancellationToken);
 
-            if(readBlock == 0 && this.isWritingDone())
+            if(readBlock == 0 && this.streamManager.WritingIsDone)
             {
                 return 0;
             }
@@ -122,10 +117,9 @@ public class MemoryMappedStreamManagerReader : Stream
             buffer = buffer.Slice(readBlock);
             read += readBlock;
 
-            if(buffer.Length > 0 && this.getBuffered() < this.Length)
+            if(buffer.Length > 0 && this.streamManager.Buffered < this.Length)
             {
-                this.readAwaiter.Reset();
-                this.readAwaiter.Wait(cancellationToken);
+                await this.streamManager.WaitForReadAsync(cancellationToken);
             }
             else if(buffer.Length > 0)
             {
@@ -138,14 +132,16 @@ public class MemoryMappedStreamManagerReader : Stream
 
     private ValueTask<int> OneReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        var canRead = (int)Math.Min(buffer.Length, this.getBuffered() - this.Position);
+        var canRead = (int)Math.Max(0, Math.Min(buffer.Length, this.streamManager.Buffered - this.Position));
 
-        if(canRead == 0 && this.isWritingDone())
+        if(canRead == 0 && this.streamManager.WritingIsDone)
         {
             return new ValueTask<int>(0);
         }
 
         return this.reader.ReadAsync(buffer.Slice(0, canRead), cancellationToken);
     }
+
+
 }
 

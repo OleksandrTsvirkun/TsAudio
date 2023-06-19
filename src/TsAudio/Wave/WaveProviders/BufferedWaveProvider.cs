@@ -163,16 +163,15 @@ public class BufferedWaveProvider : IWaveBuffer
 
     public async ValueTask ResetAsync(CancellationToken cancellationToken = default)
     {
-        using(var locker = await this.locker.LockAsync(cancellationToken))
-        {
-            this.isFlushed = false;
-            this.writePosition = 0;
-            this.readPosition = 0;
-            this.memoryOwner.Memory.Span.Clear();
-            this.isEmpty = true;
-            this.asyncReadEvent.Reset();
-            this.asyncWriteEvent.Set();
-        }
+        using var locker = await this.locker.LockAsync(cancellationToken);
+
+        this.isFlushed = false;
+        this.writePosition = 0;
+        this.readPosition = 0;
+        this.memoryOwner.Memory.Span.Clear();
+        this.isEmpty = true;
+        this.asyncReadEvent.Reset();
+        this.asyncWriteEvent.Set();
 
     }
 }

@@ -15,7 +15,7 @@ public class FileStreamManager : IStreamManager
         this.bufferSize = bufferSize;
     }
 
-    public ValueTask<Stream> GetStreamAsync(ReaderMode mode = ReaderMode.Wait, CancellationToken cancellationToken = default)
+    public ValueTask<Stream> GetStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
         var fs = new FileStream(this.filepath, FileMode.Open, FileAccess.Read, FileShare.Read, this.bufferSize, true);
         return new(fs);
