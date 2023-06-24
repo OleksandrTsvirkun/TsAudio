@@ -3,7 +3,7 @@ using System.Text;
 
 using TsAudio.Wave.WaveFormats;
 
-namespace TsAudio.Wav.Wave.WaveProvider;
+namespace TsAudio.Formats.Wav;
 
 public class WavFormatMetadataReader : IWavFormatMetadataReader
 {
@@ -31,7 +31,7 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
         WaveFormat waveFormat = null;
         long dataChunkPosition = 0;
         long dataChunkLength = 0;
-        List<RiffChunk> riffChunks = new List<RiffChunk>();
+        var riffChunks = new List<RiffChunk>();
 
         while(stream.Position <= stopPosition)
         {
@@ -61,7 +61,7 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
             else
             {
                 var chunkIdentifierString = Encoding.UTF8.GetString(chunkIdentifier.Span);
-                var riffChunk = new RiffChunk(chunkIdentifierString, chunkLength, stream.Position);
+                var riffChunk = new RiffChunk(chunkIdentifierString, stream.Position, chunkLength);
                 riffChunks.Add(riffChunk);
                 stream.Seek(chunkLength, SeekOrigin.Current);
             }
@@ -69,9 +69,9 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
 
         return new WavMetadata()
         {
-            DataChuckLength = dataChunkLength,
-            DataChuckPosition = dataChunkPosition,
-            isRf64 = riffHeader.IsRf64,
+            DataChunkLength = dataChunkLength,
+            DataChunkPosition = dataChunkPosition,
+            IsRf64 = riffHeader.IsRf64,
             RiffChunks = riffChunks,
             WaveFormat = waveFormat
         };
@@ -127,7 +127,7 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
             throw new FormatException("Invalid RF64 WAV file - No ds64 chunk found");
         }
 
-        int chunkSize = BitConverter.ToInt32(buffer.Span.Slice(4, 4));
+        var chunkSize = BitConverter.ToInt32(buffer.Span.Slice(4, 4));
 
         var riffSize = BitConverter.ToInt64(buffer.Span.Slice(8, 8));
         var dataChunkLength = BitConverter.ToInt64(buffer.Span.Slice(16, 8));

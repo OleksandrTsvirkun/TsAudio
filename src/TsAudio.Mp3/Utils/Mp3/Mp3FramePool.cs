@@ -2,10 +2,12 @@
 using System.Buffers;
 using System.Collections.Concurrent;
 
-namespace TsAudio.Formats.Mp3;
+namespace TsAudio.Utils.Mp3;
 
 public class Mp3FramePool : MemoryPool<byte>
 {
+    public static Mp3FramePool Instance = new Mp3FramePool();
+
     private readonly ConcurrentDictionary<int, ConcurrentBag<WeakReference<Mp3FrameMemoryOwner>>> pool;
 
     public Mp3FramePool()
@@ -17,8 +19,8 @@ public class Mp3FramePool : MemoryPool<byte>
 
     public override IMemoryOwner<byte> Rent(int minBufferSize = -1)
     {
-        if(this.pool.TryGetValue(minBufferSize, out var frames) 
-            && frames.TryTake(out var reference) 
+        if(this.pool.TryGetValue(minBufferSize, out var frames)
+            && frames.TryTake(out var reference)
             && reference.TryGetTarget(out var frame)
             && frame is not null
             && frame.Memory.Length > 0)

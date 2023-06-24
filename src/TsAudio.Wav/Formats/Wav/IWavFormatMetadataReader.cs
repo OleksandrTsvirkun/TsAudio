@@ -1,4 +1,4 @@
-﻿namespace TsAudio.Wav.Wave.WaveProvider;
+﻿namespace TsAudio.Formats.Wav;
 
 public interface IWavFormatMetadataReader
 {

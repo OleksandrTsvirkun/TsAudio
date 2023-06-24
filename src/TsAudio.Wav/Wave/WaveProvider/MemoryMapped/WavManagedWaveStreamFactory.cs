@@ -1,16 +1,17 @@
 ﻿using TsAudio.Utils.Streams;
+using TsAudio.Formats.Wav;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
 
-namespace TsAudio.Wav.Wave.WaveProvider;
+namespace TsAudio.Wave.WaveProvider.MemoryMapped;
 
 public class WavWaveStreamFactory : IWaveStreamFactory
 {
     private readonly IStreamManager streamManager;
     private readonly IWavFormatMetadataReader metadataReader;
     private WavMetadata metadata;
-    
-    public long SampleCount => this.metadata.DataChuckLength / ((this.metadata.WaveFormat.BitsPerSample / 8) * this.metadata.WaveFormat.Channels);
+
+    public long SampleCount => this.metadata.DataChunkLength / (this.metadata.WaveFormat.BitsPerSample / 8 * this.metadata.WaveFormat.Channels);
 
     public long? TotalSamples => this.SampleCount;
 
@@ -29,29 +30,24 @@ public class WavWaveStreamFactory : IWaveStreamFactory
         this.metadata = await this.metadataReader.ReadWavFormatMetadataAsync(stream, cancellationToken);
     }
 
-    public async  ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
+    public async ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
         var args = new WavManagedWaveStreamArgs()
         {
-            DataChuckLength = this.metadata.DataChuckLength,
-            DataChuckPosition = this.metadata.DataChuckPosition,
-            WaveFormat = this.metadata.WaveFormat,
+            Metadata = this.metadata,
             Reader = await this.streamManager.GetStreamAsync(mode, cancellationToken),
         };
 
-        return new WavManagedWaveStream(args); 
+        return new WavManagedWaveStream(args);
     }
 
     public void Dispose()
-    {
-        throw new NotImplementedException();
+    {   
     }
 
     public ValueTask DisposeAsync()
     {
-        throw new NotImplementedException();
+        return ValueTask.CompletedTask; 
     }
-
-
 
 }

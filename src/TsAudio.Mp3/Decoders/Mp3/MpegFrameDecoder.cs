@@ -98,7 +98,7 @@ public class MpegFrameDecoder
             var ch0 = MemoryMarshal.AsBytes(this.ch0.AsSpan(0, cnt));
             ch0.CopyTo(data.Memory.Span);
 
-            return new MemoryOwner<byte>(data, sampleCount);
+            return data.Exact(sampleCount);
         }
         else
         {
@@ -113,7 +113,7 @@ public class MpegFrameDecoder
                 ch0.Slice(i * sizeof(float), sizeof(float)).CopyTo(span.Slice(offset++ * sizeof(float), sizeof(float)));
                 ch1.Slice(i * sizeof(float), sizeof(float)).CopyTo(span.Slice(offset++ * sizeof(float), sizeof(float)));
             }
-            return new MemoryOwner<byte>(data, sampleCount);
+            return data.Exact(sampleCount);
         }
     }
 
