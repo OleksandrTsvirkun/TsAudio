@@ -1,15 +1,15 @@
 ﻿using TsAudio.Utils.Threading;
+using TsAudio.Wav.Formats.Wav;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
 
-namespace TsAudio.Wav.Wave.WaveProvider;
-public class WavWaveStream : WaveStream
+namespace TsAudio.Wav.Wave.WaveProvider.MemoryMapped;
+public abstract class WavWaveStream : WaveStream
 {
-    private readonly Stream stream;
-    private readonly IWavFormatMetadataReader metadataReader;
-    private readonly SemaphoreSlim repositionLock = new(1, 1);
+    protected readonly Stream stream;
+    protected readonly SemaphoreSlim repositionLock = new(1, 1);
 
-    private WavMetadata metadata;
+    protected WavMetadata metadata;
 
     public override WaveFormat WaveFormat => this.metadata?.WaveFormat ?? throw new InvalidOperationException("Must call init first.");
 
@@ -22,7 +22,7 @@ public class WavWaveStream : WaveStream
                 throw new InvalidOperationException("Must call init first.");
             }
 
-            return this.metadata.DataChuckLength / ((this.WaveFormat.BitsPerSample/ 8) * this.WaveFormat.Channels);
+            return this.metadata.DataChunkLength / (this.WaveFormat.BitsPerSample / 8 * this.WaveFormat.Channels);
         }
     }
 
@@ -35,19 +35,15 @@ public class WavWaveStream : WaveStream
                 return 0;
             }
 
-            return (this.stream.Position - this.metadata.DataChuckPosition) / ((this.WaveFormat.BitsPerSample / 8) * this.WaveFormat.Channels);
+            return (this.stream.Position - this.metadata.DataChunkPosition) / (this.WaveFormat.BitsPerSample / 8 * this.WaveFormat.Channels);
         }
     }
 
+#pragma warning disable CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     public WavWaveStream(Stream stream, IWavFormatMetadataReader? metadataReader = null)
+#pragma warning restore CS8618 // Non-nullable field must contain a non-null value when exiting constructor. Consider declaring as nullable.
     {
         this.stream = stream;
-        this.metadataReader = metadataReader ?? WavFormatMetadataReader.Instance;
-    }
-
-    public override async ValueTask InitAsync(CancellationToken cancellationToken = default)
-    {
-        this.metadata = await this.metadataReader.ReadWavFormatMetadataAsync(this.stream, cancellationToken);
     }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
@@ -59,6 +55,6 @@ public class WavWaveStream : WaveStream
     {
         using var locker = await this.repositionLock.LockAsync(cancellationToken);
 
-        this.stream.Position = this.metadata.DataChuckPosition + position * ((this.WaveFormat.BitsPerSample / 8) * this.WaveFormat.Channels);
+        this.stream.Position = this.metadata.DataChunkPosition + position * (this.WaveFormat.BitsPerSample / 8 * this.WaveFormat.Channels);
     }
 }

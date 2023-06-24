@@ -1,4 +1,4 @@
-﻿namespace TsAudio.Wav.Wave.WaveProvider;
+﻿namespace TsAudio.Wav.Formats.Wav;
 
 public struct RiffHeader
 {
