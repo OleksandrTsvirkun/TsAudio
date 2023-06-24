@@ -6,6 +6,8 @@ using System.Runtime.CompilerServices;
 using System.Threading;
 using System.Threading.Tasks;
 
+using TsAudio.Utils.Mp3;
+
 namespace TsAudio.Formats.Mp3;
 
 public class Mp3FrameFactory : IMp3FrameFactory

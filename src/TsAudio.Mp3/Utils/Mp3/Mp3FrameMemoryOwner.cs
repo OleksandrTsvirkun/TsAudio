@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Buffers;
 
-namespace TsAudio.Formats.Mp3;
+namespace TsAudio.Utils.Mp3;
 
 internal class Mp3FrameMemoryOwner : IMemoryOwner<byte>
 {
