@@ -1,9 +1,10 @@
 ﻿using TsAudio.Utils.Threading;
-using TsAudio.Wav.Formats.Wav;
+using TsAudio.Formats.Wav;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
 
-namespace TsAudio.Wav.Wave.WaveProvider.MemoryMapped;
+namespace TsAudio.Wave.WaveProvider.MemoryMapped;
+
 public abstract class WavWaveStream : WaveStream
 {
     protected readonly Stream stream;

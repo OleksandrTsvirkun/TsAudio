@@ -1,6 +1,6 @@
-﻿using TsAudio.Wav.Formats.Wav;
+﻿using TsAudio.Formats.Wav;
 
-namespace TsAudio.Wav.Wave.WaveProvider.MemoryMapped;
+namespace TsAudio.Wave.WaveProvider.MemoryMapped;
 
 internal class WavManagedWaveStreamArgs
 {

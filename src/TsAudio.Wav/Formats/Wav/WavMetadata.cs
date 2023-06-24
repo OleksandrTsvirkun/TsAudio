@@ -1,6 +1,6 @@
 ﻿using TsAudio.Wave.WaveFormats;
 
-namespace TsAudio.Wav.Formats.Wav;
+namespace TsAudio.Formats.Wav;
 
 public class WavMetadata
 {

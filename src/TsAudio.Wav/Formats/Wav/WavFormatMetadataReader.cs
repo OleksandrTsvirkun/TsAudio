@@ -3,7 +3,7 @@ using System.Text;
 
 using TsAudio.Wave.WaveFormats;
 
-namespace TsAudio.Wav.Formats.Wav;
+namespace TsAudio.Formats.Wav;
 
 public class WavFormatMetadataReader : IWavFormatMetadataReader
 {

@@ -1,6 +1,6 @@
 ﻿using System.Text;
 
-namespace TsAudio.Wav.Utils;
+namespace TsAudio.Utils;
 
 /// <summary>
 /// An encoding for use with file types that have one byte per character

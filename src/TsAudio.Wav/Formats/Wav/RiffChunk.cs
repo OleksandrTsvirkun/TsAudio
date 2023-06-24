@@ -1,4 +1,4 @@
-﻿namespace TsAudio.Wav.Formats.Wav;
+﻿namespace TsAudio.Formats.Wav;
 
 /// <summary>
 /// Holds information about a RIFF file chunk

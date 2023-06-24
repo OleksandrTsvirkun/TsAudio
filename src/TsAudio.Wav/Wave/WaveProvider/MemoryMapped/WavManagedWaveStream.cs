@@ -1,4 +1,4 @@
-﻿namespace TsAudio.Wav.Wave.WaveProvider.MemoryMapped;
+﻿namespace TsAudio.Wave.WaveProvider.MemoryMapped;
 
 public class WavManagedWaveStream : WavWaveStream
 {
