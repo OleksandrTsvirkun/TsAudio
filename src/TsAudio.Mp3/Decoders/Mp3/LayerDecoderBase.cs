@@ -1,5 +1,6 @@
 ﻿using System;
 using System.Collections.Generic;
+using System.Numerics;
 
 namespace TsAudio.Decoders.Mp3
 {
@@ -171,7 +172,7 @@ namespace TsAudio.Decoders.Mp3
 
         internal void SetEQ(float[] eq)
         {
-            if (eq == null || eq.Length == 32)
+            if(eq == null || eq.Length == 32)
             {
                 _eq = eq;
             }
@@ -192,12 +193,23 @@ namespace TsAudio.Decoders.Mp3
 
             this.GetBufAndOffset(channel, out synBuf, out k);
 
-            if (_eq != null)
+            if(_eq != null)
             {
-                for (int i = 0; i < 32; i++)
+                if(Vector.IsHardwareAccelerated)
                 {
-                    data[i] *= _eq[i];
+                    var dataVec = new Vector<float>(data.Slice(0, 32));
+                    var eqVec = new Vector<float>(_eq.AsSpan(0, 32));
+                    dataVec *= eqVec;
+                    dataVec.CopyTo(data);
                 }
+                else
+                {
+                    for(int i = 0; i < 32; i++)
+                    {
+                        data[i] *= _eq[i];
+                    }
+                }
+
             }
 
             this.DCT32(in data, in synBuf, k);
@@ -209,12 +221,12 @@ namespace TsAudio.Decoders.Mp3
 
         private void GetBufAndOffset(int channel, out Span<float> synBuf, out int k)
         {
-            while (this.synBuffer.Count <= channel)
+            while(this.synBuffer.Count <= channel)
             {
                 this.synBuffer.Add(new float[1024]);
             }
 
-            while (this.bufferOffset.Count <= channel)
+            while(this.bufferOffset.Count <= channel)
             {
                 this.bufferOffset.Add(0);
             }
@@ -234,7 +246,7 @@ namespace TsAudio.Decoders.Mp3
             Span<float> oi32 = stackalloc float[16];
             Span<float> oo32 = stackalloc float[16];
 
-            for (i = 0; i < 16; i++)
+            for(i = 0; i < 16; i++)
             {
                 ei32[i] = _in[i] + _in[31 - i];
                 oi32[i] = (_in[i] - _in[31 - i]) * SYNTH_COS64_TABLE[2 * i];
@@ -243,7 +255,7 @@ namespace TsAudio.Decoders.Mp3
             DCT16(ei32, eo32);
             DCT16(oi32, oo32);
 
-            for (i = 0; i < 15; i++)
+            for(i = 0; i < 15; i++)
             {
                 _out[2 * i + k] = eo32[i];
                 _out[2 * i + 1 + k] = oo32[i] + oo32[i + 1];
@@ -335,9 +347,9 @@ namespace TsAudio.Decoders.Mp3
         {
             int i, j, uvp = 0;
 
-            for (j = 0; j < 8; j++)
+            for(j = 0; j < 8; j++)
             {
-                for (i = 0; i < 16; i++)
+                for(i = 0; i < 16; i++)
                 {
                     /* Copy first 32 elements */
                     u_vec[uvp + i] = cur_synbuf[k + i + 16];
@@ -347,7 +359,7 @@ namespace TsAudio.Decoders.Mp3
                 /* k wraps at the synthesis buffer boundary  */
                 k = k + 32 & 511;
 
-                for (i = 0; i < 16; i++)
+                for(i = 0; i < 16; i++)
                 {
                     /* Copy next 32 elements */
                     u_vec[uvp + i + 32] = -cur_synbuf[k + 16 - i];
@@ -363,16 +375,29 @@ namespace TsAudio.Decoders.Mp3
 
         private void DewindowOutput(in Span<float> u_vec, in Span<float> samples)
         {
-            for (int i = 0; i < 512; i++)
+            if(Vector.IsHardwareAccelerated)
             {
-                u_vec[i] *= DEWINDOW_TABLE[i];
+                for(int i = 0; i < 512; i+= 4)
+                {
+                    var uVec = new Vector4(u_vec.Slice(i, 4));
+                    var deVec = new Vector4(DEWINDOW_TABLE.AsSpan(i, 4));
+                    uVec *= deVec;
+                    uVec.CopyTo(u_vec.Slice(i));
+                }
+            }
+            else
+            {
+                for(int i = 0; i < 512; i++)
+                {
+                    u_vec[i] *= DEWINDOW_TABLE[i];
+                }
             }
 
-            for (int i = 0; i < 32; i++)
+            for(int i = 0; i < 32; i++)
             {
                 float sum = u_vec[i];
 
-                for(int j =  1; j < 16; ++j)
+                for(int j = 1; j < 16; ++j)
                 {
                     sum += u_vec[i + (j << 5)];
                 }
@@ -380,7 +405,9 @@ namespace TsAudio.Decoders.Mp3
                 u_vec[i] = sum;
             }
 
-            for (int i = 0; i < 32; i++)
+            //u_vec.Slice(0, 32).CopyTo(samples);
+
+            for(int i = 0; i < 32; i++)
             {
                 samples[i] = u_vec[i];
             }
