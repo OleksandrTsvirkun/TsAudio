@@ -8,18 +8,20 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Threading;
 
-public class SingleThreadTaskScheduler : TaskScheduler
+public class SingleThreadTaskScheduler : TaskScheduler, IDisposable
 {
-    public static new SingleThreadTaskScheduler Default = new();
-
+    private static Lazy<SingleThreadTaskScheduler> @default = new(() => new SingleThreadTaskScheduler(nameof(Default) + nameof(SingleThreadTaskScheduler))); 
+    public static new SingleThreadTaskScheduler Default = @default.Value;
+    private bool disposed;
     private readonly Thread thread;
     private readonly BlockingCollection<Task> tasks = new();
 
     public override int MaximumConcurrencyLevel => 1;
 
-    public SingleThreadTaskScheduler()
+    public SingleThreadTaskScheduler(string threadName = nameof(SingleThreadTaskScheduler))
     {
         this.thread = new Thread(this.Execute);
+        this.thread.Name = threadName;
         this.thread.Start();
     }
 
@@ -55,6 +57,15 @@ public class SingleThreadTaskScheduler : TaskScheduler
             {
                 Debug.WriteLine(ex.Message);
             }
+        }
+    }
+
+    public void Dispose()
+    {
+        if(!this.disposed)
+        {
+            this.tasks.Dispose();
+            this.disposed = true;
         }
     }
 }

@@ -15,6 +15,8 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveOutEvent : IWavePlayer, IWavePosition
 {
+    private static Lazy<SingleThreadTaskScheduler> Scheduler = new Lazy<SingleThreadTaskScheduler>(() => new SingleThreadTaskScheduler(nameof(WaveOutEvent) + "PlayingThread"));
+
     private readonly object waveOutLock;
     private readonly SynchronizationContext syncContext;
 
@@ -24,6 +26,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     private AutoResetEvent callbackEvent;
     private CancellationTokenSource cancellationTokenSource;
     private Task playing;
+    private bool disposed;
 
     private volatile PlaybackState playbackState;
 
@@ -150,10 +153,8 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public void Play()
     {
-        if(this.buffers == null || this.waveProvider == null)
-        {
-            throw new InvalidOperationException("Must call Init first");
-        }
+        this.ThrowIfDisposed();
+        this.ThrowIfNotInitialized();
 
         lock(this.waveOutLock)
         {
@@ -164,7 +165,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.RenewCancelationToken();
 
                 this.playing?.Dispose();
-                this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cancellationTokenSource.Token, TaskCreationOptions.LongRunning, SingleThreadTaskScheduler.Default).Unwrap();
+                this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cancellationTokenSource.Token, TaskCreationOptions.LongRunning, Scheduler.Value).Unwrap();
 
             }
             else if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
@@ -180,6 +181,9 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public void Pause()
     {
+        this.ThrowIfDisposed();
+        this.ThrowIfNotInitialized();
+
         if(this.PlaybackState != PlaybackState.Playing)
         {
             return;
@@ -195,6 +199,9 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public void Stop()
     {
+        this.ThrowIfDisposed();
+        this.ThrowIfNotInitialized();
+
         if(this.PlaybackState != PlaybackState.Stopped)
         {
             // in the call to waveOutReset with function callbacks
@@ -218,6 +225,9 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// <returns>Position in bytes</returns>
     public long GetPosition()
     {
+        this.ThrowIfDisposed();
+        this.ThrowIfNotInitialized();
+
         WaveInteropExtensions.WaveOutGetPosition(this.hWaveOut, out var mmTime, this.waveOutLock);
         return mmTime.cb;
     }
@@ -241,9 +251,14 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     {
         lock(this.waveOutLock)
         {
-            this.Stop();
-            this.DisposeBuffers();
-            this.CloseWaveOut();
+            if(!this.disposed)
+            {
+                this.Stop();
+                this.DisposeBuffers();
+                this.CloseWaveOut();
+                this.disposed = true;
+            }
+
         }
     }
 
@@ -251,11 +266,8 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     {
         lock(this.waveOutLock)
         {
-            if(this.callbackEvent != null)
-            {
-                this.callbackEvent.Close();
-                this.callbackEvent = null;
-            }
+            this.callbackEvent?.Close();
+            this.callbackEvent = null;
 
             if(this.hWaveOut != IntPtr.Zero)
             {
@@ -270,7 +282,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     {
         lock(this.waveOutLock)
         {
-            if(this.buffers != null)
+            if(this.buffers is not null)
             {
                 foreach(var buffer in this.buffers)
                 {
@@ -305,11 +317,17 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
         return syncContext;
     }
 
-
     private void RenewCancelationToken()
     {
-        this.cancellationTokenSource?.Cancel();
-        this.cancellationTokenSource?.Dispose();
+        if(this.cancellationTokenSource is not null)
+        {
+            if(!this.cancellationTokenSource.IsCancellationRequested)
+            {
+                this.cancellationTokenSource.Cancel();
+            }
+            this.cancellationTokenSource.Dispose();
+        }
+
         this.cancellationTokenSource = new CancellationTokenSource();
     }
 
@@ -384,6 +402,22 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
         finally
         {
             this.PlaybackState = PlaybackState.Stopped;
+        }
+    }
+
+    private void ThrowIfNotInitialized()
+    {
+        if(this.buffers == null || this.waveProvider == null)
+        {
+            throw new InvalidOperationException("Must call Init first");
+        }
+    }
+
+    private void ThrowIfDisposed()
+    {
+        if(this.disposed)
+        {
+            throw new ObjectDisposedException(this.GetType().Name);
         }
     }
 }

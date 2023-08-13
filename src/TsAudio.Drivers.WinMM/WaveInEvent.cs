@@ -1,12 +1,11 @@
 ﻿using System;
-using System.Runtime.InteropServices;
 using System.Threading;
 using TsAudio.Drivers.WinMM.MmeInterop;
 using TsAudio.Wave.WaveInputs;
-using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveFormats;
 using System.Threading.Tasks;
 using System.Diagnostics;
+using TsAudio.Utils.Threading;
 
 namespace TsAudio.Drivers.WinMM;
 
@@ -17,6 +16,8 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveInEvent : IWaveIn
 {
+    private static Lazy<SingleThreadTaskScheduler> Scheduler = new Lazy<SingleThreadTaskScheduler>(() => new SingleThreadTaskScheduler(nameof(WaveInEvent) + "RecordingThread"));
+
     /// <summary>
     /// Returns the number of Wave In devices available in the system
     /// </summary>
@@ -27,7 +28,7 @@ public class WaveInEvent : IWaveIn
     /// </summary>
     /// <param name="devNumber">Device to test</param>
     /// <returns>The WaveIn device capabilities</returns>
-    public static WaveInCapabilities GetCapabilities(int devNumber)  
+    public static WaveInCapabilities GetCapabilities(int devNumber)
     {
         WaveInteropExtensions.WaveInGetDevCaps((IntPtr)devNumber, out var waveInCaps);
         return waveInCaps;
@@ -38,8 +39,9 @@ public class WaveInEvent : IWaveIn
     private readonly object waveInLock;
     private IntPtr waveInHandle;
     private volatile CaptureState captureState;
+    private Task recoding;
     private WaveInBuffer[] buffers;
-
+    private CancellationTokenSource cancellationTokenSource;
 
     /// <summary>
     /// Milliseconds for the buffer. Recommended value is 100ms
@@ -133,7 +135,7 @@ public class WaveInEvent : IWaveIn
         this.CloseWaveInDevice();
 
         MmResult result = WaveInterop.waveInOpenWindow(out this.waveInHandle, (IntPtr)this.DeviceNumber, this.WaveFormat,
-            this.callbackEvent.SafeWaitHandle.DangerousGetHandle(), 
+            this.callbackEvent.SafeWaitHandle.DangerousGetHandle(),
             IntPtr.Zero, WaveInOutOpenFlags.CallbackEvent);
 
         MmException.Try(result, nameof(WaveInterop.waveInOpen));
@@ -146,10 +148,10 @@ public class WaveInEvent : IWaveIn
     /// </summary>
     public void StartRecording()
     {
-        if (this.captureState != CaptureState.Stopped)
+        if(this.captureState != CaptureState.Stopped)
         {
             throw new InvalidOperationException("Already recording");
-        }   
+        }
 
         this.OpenWaveInDevice();
 
@@ -157,7 +159,9 @@ public class WaveInEvent : IWaveIn
 
         this.captureState = CaptureState.Starting;
 
-        Task.Run(this.DoRecord);
+        this.RenewCancelationToken();
+
+        this.recoding = Task.Factory.StartNew(this.DoRecord, this.cancellationTokenSource.Token, TaskCreationOptions.LongRunning, Scheduler.Value);
     }
 
     private void DoRecord()
@@ -166,9 +170,9 @@ public class WaveInEvent : IWaveIn
         {
             this.DoRecording();
         }
-        catch (Exception e)
+        catch(Exception ex)
         {
-
+            Debug.WriteLine(ex.Message);
         }
         finally
         {
@@ -181,7 +185,7 @@ public class WaveInEvent : IWaveIn
     /// </summary>
     public void StopRecording()
     {
-        if (this.captureState != CaptureState.Stopped)
+        if(this.captureState != CaptureState.Stopped)
         {
             this.CaptureState = CaptureState.Stopping;
 
@@ -190,6 +194,8 @@ public class WaveInEvent : IWaveIn
             WaveInteropExtensions.WaveInReset(this.waveInHandle, this.waveInLock);
 
             this.callbackEvent.Set(); // signal the thread to exit
+
+            this.cancellationTokenSource!.Cancel();
         }
     }
 
@@ -208,7 +214,7 @@ public class WaveInEvent : IWaveIn
     {
         lock(this.waveInLock)
         {
-            if (this.waveInHandle != IntPtr.Zero)
+            if(this.waveInHandle != IntPtr.Zero)
             {
                 // Some drivers need the reset to properly release buffers
                 WaveInterop.waveInReset(this.waveInHandle);
@@ -297,6 +303,20 @@ public class WaveInEvent : IWaveIn
         }
 
         return syncContext;
+    }
+
+    private void RenewCancelationToken()
+    {
+        if (this.cancellationTokenSource is not null)
+        {
+            if(!this.cancellationTokenSource.IsCancellationRequested)
+            {
+                this.cancellationTokenSource.Cancel();
+            }
+            this.cancellationTokenSource.Dispose();
+        }
+        
+        this.cancellationTokenSource = new CancellationTokenSource();
     }
 }
 
