@@ -6,7 +6,7 @@ namespace TsAudio.Formats.Mp3;
 /// <summary>
 /// Represents an MP3 Frame
 /// </summary>
-public class Mp3FrameHeader
+public class Mp3FrameHeader : IEquatable<Mp3FrameHeader>
 {
     public const int MaxFrameLength = 16 * 1024;
     
@@ -65,10 +65,46 @@ public class Mp3FrameHeader
     /// </summary>
     public bool CrcPresent { get; internal set; }
 
+    public bool Equals(Mp3FrameHeader? other)
+    {
+        return other is not null
+            && other.SampleRate == SampleRate
+            && other.FrameLength == FrameLength
+            && other.BitRate == BitRate
+            && other.MpegVersion == MpegVersion
+            && other.MpegLayer == MpegLayer
+            && other.ChannelMode == ChannelMode
+            && other.SampleCount == SampleCount
+            && other.ChannelExtension == ChannelExtension
+            && other.Copyright == Copyright
+            && other.CrcPresent == CrcPresent;   
+    }
 
+    public override bool Equals(object? obj)
+    {
+        return base.Equals(obj as Mp3FrameHeader);
+    }
+
+    public override int GetHashCode()
+    {
+        var hashCode = new HashCode();
+
+        hashCode.Add(SampleRate);
+        hashCode.Add(FrameLength);
+        hashCode.Add(BitRate);
+        hashCode.Add(MpegVersion);
+        hashCode.Add(MpegLayer);
+        hashCode.Add(ChannelMode);
+        hashCode.Add(SampleCount);
+        hashCode.Add(ChannelExtension);
+        hashCode.Add(Copyright);
+        hashCode.Add(CrcPresent);
+
+        return hashCode.ToHashCode();
+    }
 }
 
-public class Mp3Frame : Mp3FrameHeader, IDisposable
+public class Mp3Frame : Mp3FrameHeader, IDisposable, IEquatable<Mp3Frame>
 {
     /// <summary>
     /// Raw frame data (includes header bytes)
@@ -78,5 +114,32 @@ public class Mp3Frame : Mp3FrameHeader, IDisposable
     public void Dispose()
     {
         this.RawData?.Dispose();
+    }
+
+    public override int GetHashCode()
+    {
+        var headerHash = base.GetHashCode();
+        var hashCode = new HashCode();
+        hashCode.Add(headerHash);
+
+        if (this.RawData is not null)
+        {
+            hashCode.AddBytes(this.RawData.Memory.Span);
+        }
+
+        return hashCode.ToHashCode();
+    }
+
+    public override bool Equals(object? obj)
+    {
+        return this.Equals(obj as Mp3Frame);
+    }
+
+    public bool Equals(Mp3Frame? other)
+    {
+        return base.Equals(other) 
+            && this.RawData is not null 
+            && other.RawData is not null
+            && this.RawData.Memory.Span.SequenceEqual(other.RawData.Memory.Span);
     }
 }

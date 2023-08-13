@@ -4,15 +4,15 @@ using System.Collections.Concurrent;
 
 namespace TsAudio.Utils.Mp3;
 
-public class Mp3FramePool : MemoryPool<byte>
+public class Mp3DecodedFrameSamplesPool : MemoryPool<byte>
 {
-    public static Mp3FramePool Instance = new Mp3FramePool();
+    public static new Mp3DecodedFrameSamplesPool Shared = new Mp3DecodedFrameSamplesPool();
 
-    private readonly ConcurrentDictionary<int, ConcurrentBag<WeakReference<Mp3FrameMemoryOwner>>> pool;
+    private readonly ConcurrentDictionary<int, ConcurrentBag<WeakReference<Mp3DecodedFrameSamplesMemoryOwner>>> pool;
 
-    public Mp3FramePool()
+    public Mp3DecodedFrameSamplesPool()
     {
-        this.pool = new ConcurrentDictionary<int, ConcurrentBag<WeakReference<Mp3FrameMemoryOwner>>>();
+        this.pool = new();
     }
 
     public override int MaxBufferSize => ushort.MaxValue;
@@ -28,20 +28,20 @@ public class Mp3FramePool : MemoryPool<byte>
             return frame;
         }
 
-        return new Mp3FrameMemoryOwner(this, new byte[minBufferSize]);
+        return new Mp3DecodedFrameSamplesMemoryOwner(this, new byte[minBufferSize]);
     }
 
-    internal void Return(Mp3FrameMemoryOwner frame)
+    internal void Return(Mp3DecodedFrameSamplesMemoryOwner frame)
     {
         this.pool.AddOrUpdate(frame.Memory.Length, (length) =>
         {
-            return new ConcurrentBag<WeakReference<Mp3FrameMemoryOwner>>()
+            return new ConcurrentBag<WeakReference<Mp3DecodedFrameSamplesMemoryOwner>>()
             {
-                new WeakReference<Mp3FrameMemoryOwner>(frame)
+                new WeakReference<Mp3DecodedFrameSamplesMemoryOwner>(frame)
             };
         }, (length, frames) =>
         {
-            frames.Add(new WeakReference<Mp3FrameMemoryOwner>(frame));
+            frames.Add(new WeakReference<Mp3DecodedFrameSamplesMemoryOwner>(frame));
             return frames;
         });
     }
