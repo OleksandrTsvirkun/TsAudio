@@ -49,6 +49,6 @@ public abstract class PeakProvider : IPeakProvider
             disposable.Dispose();
         }
 
-        this.BufferOwner.Dispose();
+        this.BufferOwner?.Dispose();
     }
 }
