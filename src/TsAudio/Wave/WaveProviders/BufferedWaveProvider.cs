@@ -17,8 +17,8 @@ namespace TsAudio.Wave.WaveProviders;
 public class BufferedWaveProvider : IWaveBuffer
 {
     protected readonly SemaphoreSlim locker = new(1, 1);
-    protected readonly ManualResetEventSlim asyncReadEvent = new(false);
-    protected readonly ManualResetEventSlim asyncWriteEvent = new(true);
+    protected readonly ManualResetEventSlim readEvent = new(false);
+    protected readonly ManualResetEventSlim writeEvent = new(true);
 
     protected IMemoryOwner<byte> memoryOwner;
     protected Memory<byte> memory;
@@ -49,16 +49,16 @@ public class BufferedWaveProvider : IWaveBuffer
 
     public long Length => this.memory.Length;
 
-    public BufferedWaveProvider(WaveFormat waveFormat, int size = 4096, MemoryPool<byte> pool = null)
+    public BufferedWaveProvider(WaveFormat waveFormat, int bufferSize = 4096, MemoryPool<byte> pool = null)
     {
         this.WaveFormat = waveFormat;
-        this.memoryOwner = (pool ?? MemoryPool<byte>.Shared).Rent(size);
+        this.memoryOwner = (pool ?? MemoryPool<byte>.Shared).Rent(bufferSize);
         this.memory = this.memoryOwner.Memory;
         this.WriteGate = (this.memoryOwner.Memory.Length / 4 * 3);
         this.isEmpty = true;
     }
 
-    public ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+    public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var read = 0;
         while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
@@ -69,8 +69,8 @@ public class BufferedWaveProvider : IWaveBuffer
             }
             else if(this.Count == 0 && this.AllowWait)
             {
-                this.asyncReadEvent.Reset();
-                this.asyncReadEvent.Wait(cancellationToken);
+                this.readEvent.Reset();
+                await this.readEvent.WithCancellation(cancellationToken);
                 continue;
             }
             else if(this.Count == 0 && !this.AllowWait)
@@ -103,12 +103,12 @@ public class BufferedWaveProvider : IWaveBuffer
 
             if(this.Length - this.Count >= this.WriteGate)
             {
-                this.asyncWriteEvent.Set();
+                this.writeEvent.Set();
             }
 
             buffer = buffer.Slice(toCopy);
         }
-        return new ValueTask<int>(read);
+        return read;
     }
 
     public ValueTask FlushAsync(CancellationToken cancellationToken = default)
@@ -117,17 +117,15 @@ public class BufferedWaveProvider : IWaveBuffer
         return default;
     }
 
-    public ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var memory = this.memoryOwner.Memory;
         while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
         {
             if(this.Count >= memory.Length)
             {
-                this.asyncWriteEvent.Reset();
-
-                this.asyncWriteEvent.Wait(cancellationToken);
-
+                this.writeEvent.Reset();
+                await this.writeEvent.WithCancellation(cancellationToken);
                 continue;
             }
 
@@ -153,12 +151,10 @@ public class BufferedWaveProvider : IWaveBuffer
                 this.isEmpty = false;
             }
 
-            this.asyncReadEvent.Set();
+            this.readEvent.Set();
 
             buffer = buffer.Slice(toCopy);
         }
-
-        return default;
     }
 
     public async ValueTask ResetAsync(CancellationToken cancellationToken = default)
@@ -170,8 +166,7 @@ public class BufferedWaveProvider : IWaveBuffer
         this.readPosition = 0;
         this.memoryOwner.Memory.Span.Clear();
         this.isEmpty = true;
-        this.asyncReadEvent.Reset();
-        this.asyncWriteEvent.Set();
-
+        this.readEvent.Reset();
+        this.writeEvent.Set();
     }
 }
