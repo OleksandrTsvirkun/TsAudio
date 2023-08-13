@@ -102,7 +102,7 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
             throw new InvalidOperationException("You cannot write after data is loaded.");
         }
 
-        await this.writeAwaiter.WaitAsync(cancellationToken);
+        await this.writeAwaiter.WithCancellation(cancellationToken);
 
         var toCopy = (int)Math.Max(0, Math.Min(buffer.Length, this.Capacity - this.Buffered));
 
@@ -118,7 +118,7 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         if(this.Buffered - this.advanced > this.BufferingOptions.PauseWriterThreshold)
         {
             this.writeAwaiter.Reset();
-            await this.writeAwaiter.WaitAsync(cancellationToken);
+            await this.writeAwaiter.WithCancellation(cancellationToken);
         }
     }
 
@@ -162,10 +162,10 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         return this.memoryMapped.CreateViewStream(0, this.Capacity, MemoryMappedFileAccess.Read);
     }
 
-    internal ValueTask WaitForReadAsync(CancellationToken cancellationToken = default)
+    internal async ValueTask WaitForReadAsync(CancellationToken cancellationToken = default)
     {
         this.readAwaiter.Reset();
-        return this.readAwaiter.WaitAsync(cancellationToken);
+        await this.readAwaiter.WithCancellation(cancellationToken);
     }
 
     internal void Advance(long value)

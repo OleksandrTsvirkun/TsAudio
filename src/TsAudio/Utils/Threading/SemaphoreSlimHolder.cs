@@ -3,12 +3,12 @@ using System.Threading;
 
 namespace TsAudio.Utils.Threading;
 
-public struct Holder : IDisposable
+public struct SemaphoreSlimHolder : IDisposable
 {
     private readonly SemaphoreSlim semaphore;
     private bool disposed;
 
-    public Holder(SemaphoreSlim semaphore)
+    public SemaphoreSlimHolder(SemaphoreSlim semaphore)
     {
         this.semaphore = semaphore;
     }

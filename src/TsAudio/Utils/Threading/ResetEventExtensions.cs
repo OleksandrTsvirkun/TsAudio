@@ -1,12 +1,17 @@
 ﻿using System.Threading;
-using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Threading;
+
 public static class ResetEventExtensions
-{
-    public static ValueTask WaitAsync(this ManualResetEventSlim manualResetEvent, CancellationToken cancellationToken = default)
+{ 
+
+    public static ManualResetEventSlimAwaiterWithCancellation WithCancellation(this ManualResetEventSlim manualResetEvent, CancellationToken cancellationToken)
     {
-        manualResetEvent.Wait(cancellationToken);
-        return ValueTask.CompletedTask;
+        return new ManualResetEventSlimAwaiterWithCancellation(manualResetEvent, cancellationToken);
+    }
+
+    public static ManualResetEventSlimAwaiter GetAwaiter(this ManualResetEventSlim manualResetEvent)
+    {
+        return new ManualResetEventSlimAwaiter(manualResetEvent);
     }
 }
