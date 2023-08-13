@@ -3,6 +3,7 @@ using System.Buffers;
 using System.Runtime.InteropServices;
 
 using TsAudio.Utils.Memory;
+using TsAudio.Utils.Mp3;
 
 namespace TsAudio.Decoders.Mp3;
 
@@ -25,12 +26,12 @@ public class MpegFrameDecoder
     /// </summary>
     public StereoMode StereoMode { get; set; }
 
-    private MemoryPool<byte> pool;
+    private Mp3DecodedFrameSamplesPool pool;
 
-    public MemoryPool<byte> Pool
+    public Mp3DecodedFrameSamplesPool Pool
     {
-        get => this.pool ??= MemoryPool<byte>.Shared;
-        set => this.pool = value ?? MemoryPool<byte>.Shared;
+        get => this.pool ??= Mp3DecodedFrameSamplesPool.Shared;
+        set => this.pool = value ?? Mp3DecodedFrameSamplesPool.Shared;
     }
 
     public MpegFrameDecoder()
@@ -70,7 +71,7 @@ public class MpegFrameDecoder
     /// <param name="dest">Destination buffer. Decoded PCM (single-precision floating point array) will be written into it.</param>
     /// <param name="destOffset">Writing offset on the destination buffer.</param>
     /// <returns></returns>
-    public MemoryOwner<byte> DecodeFrame(IMpegFrame frame)
+    public IMemoryOwner<byte> DecodeFrame(IMpegFrame frame)
     {
         if(frame == null)
         {
@@ -98,7 +99,7 @@ public class MpegFrameDecoder
             var ch0 = MemoryMarshal.AsBytes(this.ch0.AsSpan(0, cnt));
             ch0.CopyTo(data.Memory.Span);
 
-            return data.Exact(sampleCount);
+            return data;
         }
         else
         {
@@ -113,7 +114,7 @@ public class MpegFrameDecoder
                 ch0.Slice(i * sizeof(float), sizeof(float)).CopyTo(span.Slice(offset++ * sizeof(float), sizeof(float)));
                 ch1.Slice(i * sizeof(float), sizeof(float)).CopyTo(span.Slice(offset++ * sizeof(float), sizeof(float)));
             }
-            return data.Exact(sampleCount);
+            return data;
         }
     }
 
