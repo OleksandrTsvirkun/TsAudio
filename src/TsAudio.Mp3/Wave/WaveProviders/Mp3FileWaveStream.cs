@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Diagnostics;
 using System.IO;
 using System.Linq;
 using System.Threading;
@@ -38,13 +39,15 @@ public class Mp3FileWaveStream : Mp3WaveStream
         }
     }
 
-    public Mp3FileWaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null) : base(stream, bufferSize, frameFactory)
+    public Mp3FileWaveStream(Stream stream, int bufferSize = 4096, IMp3FrameFactory? frameFactory = null) : base(stream, bufferSize, frameFactory)
     {
     }
 
     public async override ValueTask InitAsync(CancellationToken cancellationToken = default)
     {
-        this.indices = await this.frameFactory.LoadFrameIndicesAsync(this.stream, cancellationToken: cancellationToken).Select(x => x.Index).ToListAsync(cancellationToken);
+        this.indices = await this.frameFactory.LoadFrameIndicesAsync(this.stream, bufferSize: this.bufferSize, cancellationToken: cancellationToken)
+            .Select(x => x.Index)
+            .ToListAsync(cancellationToken);
 
         var frame = await this.frameFactory.LoadFrameAsync(this.stream, this.indices[0], cancellationToken);
 
@@ -62,9 +65,16 @@ public class Mp3FileWaveStream : Mp3WaveStream
 
         this.waveFormat = this.decompressor.WaveFormat;
 
-        this.waveProvider = new BufferedWaveProvider(this.mp3WaveFormat, this.bufferSize);
+        var bufferSize = 1152 * this.waveFormat.BitsPerSample / 8 * this.waveFormat.Channels * 2;
+        this.waveProvider = new BufferedWaveProvider(this.mp3WaveFormat, bufferSize);
 
         this.decodeCts = new();
-        this.decoding = this.DecodeAsync();
+        this.decoding = this.DecodeAsync().ContinueWith(x =>
+        {
+            if(x.IsFaulted)
+            {
+                Debug.WriteLine(x.Exception?.Message);
+            }
+        });
     }
 }
