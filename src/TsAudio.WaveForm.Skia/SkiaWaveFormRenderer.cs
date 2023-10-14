@@ -60,7 +60,7 @@ public class SkiaWaveFormRenderer
         x = 0;
         canvas.Clear();
 
-        return Task.Factory.StartNew(async () =>
+        return Task.Run(async () =>
         {
             try
             {
@@ -94,7 +94,7 @@ public class SkiaWaveFormRenderer
                 updater();
                 await peakProvider.DisposeAsync();
             }
-        }, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default);
+        }, cancellationToken);
     }
 
     private CancellationToken RenewCancellationToken(CancellationToken cancellationTokenExternal)

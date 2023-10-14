@@ -15,7 +15,7 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveOutEvent : IWavePlayer, IWavePosition
 {
-    private static Lazy<SingleThreadTaskScheduler> Scheduler = new Lazy<SingleThreadTaskScheduler>(() => new SingleThreadTaskScheduler(nameof(WaveOutEvent) + "PlayingThread"));
+    private static Lazy<SingleThreadTaskScheduler> Scheduler = new(() => new SingleThreadTaskScheduler(nameof(WaveOutEvent) + "PlayingThread"));
 
     private readonly object waveOutLock;
     private readonly SynchronizationContext syncContext;
@@ -191,7 +191,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
         WaveInteropExtensions.WaveOutPause(this.hWaveOut, this.waveOutLock);
 
-        this.PlaybackState = PlaybackState.Paused;  
+        this.PlaybackState = PlaybackState.Paused;
     }
 
     /// <summary>
@@ -200,7 +200,6 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     public void Stop()
     {
         this.ThrowIfDisposed();
-        this.ThrowIfNotInitialized();
 
         if(this.PlaybackState != PlaybackState.Stopped)
         {
@@ -280,6 +279,11 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
     private void DisposeBuffers()
     {
+        if(this.hWaveOut != IntPtr.Zero)
+        {
+            WaveInteropExtensions.WaveOutReset(this.hWaveOut, this.waveOutLock);
+        }
+
         lock(this.waveOutLock)
         {
             if(this.buffers is not null)
@@ -333,7 +337,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
     private async ValueTask DoPlayback(CancellationToken cancellationToken = default)
     {
-        while(this.PlaybackState != PlaybackState.Stopped)
+        while(this.PlaybackState != PlaybackState.Stopped && !cancellationToken.IsCancellationRequested)
         {
             this.callbackEvent.WaitOne();
 

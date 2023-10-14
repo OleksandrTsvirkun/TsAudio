@@ -115,7 +115,7 @@ public abstract class Mp3WaveStream : WaveStream
             throw new ArgumentException("Not found any MP3 frame indices.", nameof(this.indices.Count));
         }
 
-        while(!cancellationToken.IsCancellationRequested && !disposed)
+        while(!cancellationToken.IsCancellationRequested && !this.disposed)
         {
             try
             {

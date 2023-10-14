@@ -6,7 +6,7 @@ namespace TsAudio.Drivers.WinMM;
 /// <summary>
 /// A buffer of Wave samples
 /// </summary>
-public class WaveInBuffer : WaveBuffer, IDisposable
+public class WaveInBuffer : WaveBuffer
 {
     /// <summary>
     /// Provides access to the actual record buffer (for reading only)

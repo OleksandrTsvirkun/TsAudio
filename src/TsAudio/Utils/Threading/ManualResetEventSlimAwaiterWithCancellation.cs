@@ -19,6 +19,11 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
 
     public ManualResetEventSlimAwaiterWithCancellation GetAwaiter() => this;
 
+    void INotifyCompletion.OnCompleted(Action continuation)
+    {
+        this.OnCompleted(continuation);
+    }
+
     public void OnCompleted(Action continuation)
     {
         try
@@ -27,7 +32,7 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
         }
         catch(OperationCanceledException ex)
         {
-
+            this.manualResetEvent.Set();
         }
         finally
         {

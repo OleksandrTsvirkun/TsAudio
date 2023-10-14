@@ -114,6 +114,7 @@ public class BufferedWaveProvider : IWaveBuffer
     public ValueTask FlushAsync(CancellationToken cancellationToken = default)
     {
         this.isFlushed = true;
+        this.readEvent.Set();
         return default;
     }
 

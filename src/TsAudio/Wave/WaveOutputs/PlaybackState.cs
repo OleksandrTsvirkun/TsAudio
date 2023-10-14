@@ -16,6 +16,5 @@ public enum PlaybackState
     /// <summary>
     /// Paused
     /// </summary>
-    Paused,
-    Ended
+    Paused
 }

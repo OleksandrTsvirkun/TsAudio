@@ -1,7 +1,6 @@
 ﻿using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Threading;
 using System.Threading.Tasks;
 
 namespace TsAudio.Sample.PeekProviders;
@@ -9,6 +8,8 @@ namespace TsAudio.Sample.PeekProviders;
 public class AveragePeakProvider : PeakProvider
 {
     private readonly float scale;
+
+    public float Scale => this.scale;
 
     public AveragePeakProvider(float scale = 1f)
     {
