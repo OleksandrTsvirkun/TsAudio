@@ -60,6 +60,11 @@ public class SingleThreadSynchronizationContext : SynchronizationContext
         }
     }
 
+    public override string ToString()
+    {
+        return $"{nameof(SingleThreadSynchronizationContext)} {this.thread.Name} Id: {this.thread.ManagedThreadId}";
+    }
+
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     private bool TryExecuteInline(SendOrPostCallback continuation, object state)
     {
@@ -95,4 +100,5 @@ public class SingleThreadSynchronizationContext : SynchronizationContext
             task.Callback(task.State);
         }
     }
+
 }

@@ -15,7 +15,8 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveOutEvent : IWavePlayer, IWavePosition
 {
-    private readonly SynchronizationContext synchronizationContext = new SingleThreadSynchronizationContext("WaveOutEventPlayingThread #1", ThreadPriority.Highest);
+    private readonly Lazy<SynchronizationContext> playbackSyncContextLazy = new(new SingleThreadSynchronizationContext("WaveOutEventPlayingThread #1", ThreadPriority.Highest));
+    private readonly Lazy<TaskScheduler> playbackTaskSchedulerLazy;
 
     private readonly object waveOutLock;
     private readonly SynchronizationContext syncContext;
@@ -96,6 +97,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public WaveOutEvent()
     {
+        this.playbackTaskSchedulerLazy = new Lazy<TaskScheduler>(this.GetTaskScheduler);
         this.syncContext = GetSynchronizationContext();
         this.waveOutLock = new object();
         this.DesiredLatency = 300;
@@ -165,7 +167,8 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.RenewCancelationToken();
 
                 this.playing?.Dispose();
-                this.playing = Task.Run(this.DoPlaybackWrapper, this.cts.Token);
+
+                this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cts.Token, TaskCreationOptions.LongRunning, this.playbackTaskSchedulerLazy.Value);
 
             }
             else if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
@@ -174,6 +177,18 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.callbackEvent.Set(); // give the thread a kick
             }
         }
+    }
+
+    private TaskScheduler GetTaskScheduler()
+    {
+        var syncContext = SynchronizationContext.Current;
+
+        SynchronizationContext.SetSynchronizationContext(this.playbackSyncContextLazy.Value);
+
+        var scheduler = TaskScheduler.FromCurrentSynchronizationContext();
+
+        SynchronizationContext.SetSynchronizationContext(syncContext);
+        return scheduler;
     }
 
     /// <summary>
@@ -395,8 +410,6 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
     private async Task DoPlaybackWrapper()
     {
-        SynchronizationContext.SetSynchronizationContext(this.synchronizationContext);
-
         try
         {
             await this.DoPlayback(this.cts.Token);
