@@ -10,17 +10,21 @@ namespace TsAudio.Utils.Threading;
 
 public class SingleThreadTaskScheduler : TaskScheduler, IDisposable
 {
-    private static Lazy<SingleThreadTaskScheduler> @default = new(() => new SingleThreadTaskScheduler(nameof(Default) + nameof(SingleThreadTaskScheduler))); 
-    public static new SingleThreadTaskScheduler Default = @default.Value;
-    private bool disposed;
     private readonly Thread thread;
     private readonly BlockingCollection<Task> tasks = new();
 
+    private bool disposed;
+
     public override int MaximumConcurrencyLevel => 1;
 
-    public SingleThreadTaskScheduler(string threadName = nameof(SingleThreadTaskScheduler))
+    public SingleThreadTaskScheduler(string threadName, ThreadPriority priority = ThreadPriority.Normal, bool isBackground = true)
     {
-        this.thread = new Thread(this.Execute);
+        this.thread = new Thread(this.Execute) 
+        {
+            Name = threadName,
+            Priority = priority,
+            IsBackground = isBackground 
+        };
         this.thread.Name = threadName;
         this.thread.Start();
     }

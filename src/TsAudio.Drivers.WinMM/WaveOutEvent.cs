@@ -15,7 +15,7 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveOutEvent : IWavePlayer, IWavePosition
 {
-    private static Lazy<SingleThreadTaskScheduler> Scheduler = new(() => new SingleThreadTaskScheduler(nameof(WaveOutEvent) + "PlayingThread"));
+    private readonly SynchronizationContext synchronizationContext = new SingleThreadSynchronizationContext("WaveOutEventPlayingThread #1", ThreadPriority.Highest);
 
     private readonly object waveOutLock;
     private readonly SynchronizationContext syncContext;
@@ -24,7 +24,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     private WaveOutBuffer[] buffers;
     private IWaveProvider waveProvider;
     private AutoResetEvent callbackEvent;
-    private CancellationTokenSource cancellationTokenSource;
+    private CancellationTokenSource cts;
     private Task playing;
     private bool disposed;
 
@@ -133,7 +133,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
             var hCallbackEvent = this.callbackEvent.SafeWaitHandle.DangerousGetHandle();
 
             var result = WaveInterop.waveOutOpenWindow(
-                    out hWaveOut,
+                    out this.hWaveOut,
                     this.DeviceNumber,
                     this.waveProvider.WaveFormat,
                     hCallbackEvent,
@@ -165,7 +165,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.RenewCancelationToken();
 
                 this.playing?.Dispose();
-                this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cancellationTokenSource.Token, TaskCreationOptions.LongRunning, Scheduler.Value).Unwrap();
+                this.playing = Task.Run(this.DoPlaybackWrapper, this.cts.Token);
 
             }
             else if(this.PlaybackState == TsAudio.Wave.WaveOutputs.PlaybackState.Paused)
@@ -208,7 +208,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
             // for every buffer
             this.PlaybackState = PlaybackState.Stopped;
 
-            this.cancellationTokenSource?.Cancel();
+            this.cts?.Cancel();
 
             WaveInteropExtensions.WaveOutReset(this.hWaveOut, this.waveOutLock);
 
@@ -323,16 +323,16 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
     private void RenewCancelationToken()
     {
-        if(this.cancellationTokenSource is not null)
+        if(this.cts is not null)
         {
-            if(!this.cancellationTokenSource.IsCancellationRequested)
+            if(!this.cts.IsCancellationRequested)
             {
-                this.cancellationTokenSource.Cancel();
+                this.cts.Cancel();
             }
-            this.cancellationTokenSource.Dispose();
+            this.cts.Dispose();
         }
 
-        this.cancellationTokenSource = new CancellationTokenSource();
+        this.cts = new CancellationTokenSource();
     }
 
     private async ValueTask DoPlayback(CancellationToken cancellationToken = default)
@@ -395,9 +395,11 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
 
     private async Task DoPlaybackWrapper()
     {
+        SynchronizationContext.SetSynchronizationContext(this.synchronizationContext);
+
         try
         {
-            await this.DoPlayback(this.cancellationTokenSource.Token);
+            await this.DoPlayback(this.cts.Token);
         }
         catch(Exception ex)
         {
