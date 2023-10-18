@@ -7,6 +7,11 @@ public static class ArithmeticalExtensions
     {
         var currentValue = oldValue;
 
+        if (currentValue > value)
+        {
+            return;
+        }
+
         while(value > currentValue)
         {
             var previousValue = currentValue;

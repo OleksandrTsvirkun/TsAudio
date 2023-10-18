@@ -59,8 +59,6 @@ public class PipeWaveBuffer : IWaveBuffer
 
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
     {
-        var writer = this.pipe.Writer;
-
-        var result = await writer.WriteAsync(data, cancellationToken);
+        await this.pipe.Writer.WriteAsync(data, cancellationToken);
     }
 }

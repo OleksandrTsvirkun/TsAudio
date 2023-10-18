@@ -2,5 +2,5 @@
 
 public interface IWavFormatMetadataReader
 {
-    Task<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default);
+    ValueTask<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default);
 }

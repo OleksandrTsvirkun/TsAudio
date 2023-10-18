@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Buffers;
 using System.Collections.Concurrent;
 using System.IO;
 using System.IO.MemoryMappedFiles;
@@ -16,25 +15,24 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
     private readonly ManualResetEventSlim writeAwaiter = new(true);
     private readonly ManualResetEventSlim readAwaiter = new(false);
     private readonly ConcurrentBag<WeakReference<MemoryMappedStreamManagerReader>> readers = new();
-    private MemoryMappedViewStream writer;
+    private readonly MemoryMappedViewStream writer;
 
     private long advanced;
     public long Advanced => this.advanced;
 
-    public bool WritingIsDone => this.writer is null ? true : this.writer.Position >= this.writer.Length;
+    public bool WritingIsDone => this.writer.Position >= this.writer.Length;
 
     private long capacity;
     public long Capacity => this.capacity;
 
-    public long Buffered => this.writer is null ? this.capacity : this.writer.Position;
+    public long Buffered => this.writer.Position;
 
     public BufferingOptions BufferingOptions { get; }
 
-    public MemoryMappedStreamManager(long capacity, BufferingOptions bufferingOptions = null)
+    public MemoryMappedStreamManager(long capacity = long.MaxValue, BufferingOptions bufferingOptions = null)
     {
         this.memoryMapped = MemoryMappedFile.CreateNew(Path.GetRandomFileName(), capacity);
         this.writer = this.memoryMapped.CreateViewStream(0, capacity, MemoryMappedFileAccess.Write);
-
         this.capacity = this.writer.Length;
 
         this.BufferingOptions = bufferingOptions ?? new BufferingOptions()
@@ -44,65 +42,14 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         };
     }
 
-    public Task LoadAsync(Stream stream, MemoryPool<byte> memoryPool = null, int bufferSize = 4096, CancellationToken cancellationToken = default)
+    public Task FlushAsync(CancellationToken cancellationToken = default)
     {
-        return Task.Factory.StartNew(LoadAsyncImpl, cancellationToken, TaskCreationOptions.LongRunning | TaskCreationOptions.AttachedToParent, TaskScheduler.Default).Unwrap();
-
-        async Task LoadAsyncImpl()
-        {
-            memoryPool ??= MemoryPool<byte>.Shared;
-
-            var memoryOwner = memoryPool.Rent(bufferSize);
-            try
-            {
-                while(!cancellationToken.IsCancellationRequested)
-                {
-                    var read = await stream.ReadAsync(memoryOwner.Memory, cancellationToken);
-
-                    if(read == 0)
-                    {
-                        break;
-                    }
-
-                    await this.WriteAsync(memoryOwner.Memory.Slice(0, read), cancellationToken);
-                }
-            }
-            catch(OperationCanceledException ex)
-            {
-
-            }
-            catch(Exception ex)
-            {
-
-            }
-            finally
-            {
-                memoryOwner.Dispose();
-                await this.FlushAsync(cancellationToken);
-                await this.writer.DisposeAsync();
-                this.writer = null;
-            }
-        }
-    }
-
-    private Task FlushAsync(CancellationToken cancellationToken = default)
-    {
-        if (this.writer is null)
-        {
-            throw new InvalidOperationException("You cannot flush after data is loaded.");
-        }
-
         return this.writer.FlushAsync(cancellationToken);
     }
 
-    private async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
+    public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        if(this.writer is null)
-        {
-            throw new InvalidOperationException("You cannot write after data is loaded.");
-        }
-
-        await this.writeAwaiter.WithCancellation(cancellationToken);
+        await this.writeAwaiter.GetAwaiterWithCancellation(cancellationToken);
 
         var toCopy = (int)Math.Max(0, Math.Min(buffer.Length, this.Capacity - this.Buffered));
 
@@ -118,7 +65,6 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         if(this.Buffered - this.advanced > this.BufferingOptions.PauseWriterThreshold)
         {
             this.writeAwaiter.Reset();
-            await this.writeAwaiter.WithCancellation(cancellationToken);
         }
     }
 
@@ -127,21 +73,6 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         var reader = new MemoryMappedStreamManagerReader(this, mode);
         return new ValueTask<Stream>(reader);
     }
-
-    public void Dispose()
-    {
-        foreach(var @ref in this.readers)
-        {
-            if(@ref.TryGetTarget(out var reader))
-            {
-                reader.Dispose();
-            }
-        }
-
-        this.writer.Dispose();
-        this.memoryMapped.Dispose();
-    }
-
 
     public async ValueTask DisposeAsync()
     {
@@ -162,10 +93,15 @@ public class MemoryMappedStreamManager : IBufferedStreamManager
         return this.memoryMapped.CreateViewStream(0, this.Capacity, MemoryMappedFileAccess.Read);
     }
 
-    internal async ValueTask WaitForReadAsync(CancellationToken cancellationToken = default)
+    internal ManualResetEventSlimAwaiterWithCancellation WaitForReadAsync(CancellationToken cancellationToken = default)
+    {
+        return this.readAwaiter.ResetAndGetAwaiterWithCancellation(cancellationToken);
+    }
+
+    internal void WaitForRead()
     {
         this.readAwaiter.Reset();
-        await this.readAwaiter.WithCancellation(cancellationToken);
+        this.readAwaiter.Wait();
     }
 
     internal void Advance(long value)

@@ -17,7 +17,7 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 
     public WaveFormat WaveFormat => this.metadata.WaveFormat ?? throw new InvalidOperationException("Must call init first.");
 
-    public WavWaveStreamFactory(IStreamManager streamManager, IWavFormatMetadataReader metadataReader = null)
+    public WavWaveStreamFactory(IStreamManager streamManager, IWavFormatMetadataReader? metadataReader = null)
     {
         this.streamManager = streamManager;
         this.metadataReader = metadataReader ?? WavFormatMetadataReader.Instance;
@@ -25,7 +25,7 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 
     public async ValueTask InitAsync(CancellationToken cancellationToken = default)
     {
-        using var stream = await this.streamManager.GetStreamAsync(StreamReadMode.Kick, cancellationToken);
+        using var stream = await this.streamManager.GetStreamAsync(StreamReadMode.Wait, cancellationToken);
 
         this.metadata = await this.metadataReader.ReadWavFormatMetadataAsync(stream, cancellationToken);
     }

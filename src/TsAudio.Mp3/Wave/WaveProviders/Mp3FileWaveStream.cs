@@ -45,9 +45,14 @@ public class Mp3FileWaveStream : Mp3WaveStream
 
     public async override ValueTask InitAsync(CancellationToken cancellationToken = default)
     {
-        this.indices = await this.frameFactory.LoadFrameIndicesAsync(this.stream, bufferSize: this.bufferSize, cancellationToken: cancellationToken)
+        this.indices = await this.frameFactory.LoadFrameIndicesAsync(this.stream, this.bufferSize, cancellationToken)
             .Select(x => x.Index)
             .ToListAsync(cancellationToken);
+
+        if (this.indices.Count == 0)
+        {
+            throw new InvalidOperationException("Stream does not contains MP# Frames.");
+        }
 
         var frame = await this.frameFactory.LoadFrameAsync(this.stream, this.indices[0], cancellationToken);
 

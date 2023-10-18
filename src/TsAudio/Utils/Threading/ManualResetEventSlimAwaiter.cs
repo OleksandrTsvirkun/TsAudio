@@ -19,7 +19,11 @@ public struct ManualResetEventSlimAwaiter : INotifyCompletion
 
     public void OnCompleted(Action continuation)
     {
-        this.manualResetEvent.Wait();
+        if (!this.manualResetEvent.IsSet)
+        {
+            this.manualResetEvent.Wait();
+        }
+
         continuation();
     }
 

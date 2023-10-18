@@ -2,6 +2,7 @@
 using System.Threading;
 
 using TsAudio.Utils.Threading;
+using System.Diagnostics;
 
 namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 
@@ -24,7 +25,13 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
         this.parsing = args.Analyzing;
         this.waitForParse = args.ParseWait;
         this.decodeCts = new();
-        this.decoding = this.DecodeAsync();
+        this.decoding = this.DecodeAsync().ContinueWith(x =>
+        {
+            if(x.IsFaulted)
+            {
+                Debug.WriteLine(x.Exception?.Message);
+            }
+        });
     }
 
     public override ValueTask InitAsync(CancellationToken cancellationToken = default)
@@ -37,13 +44,11 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
         if(this.parsing.IsCompleted)
         {
             await this.waveProvider.FlushAsync(cancellationToken);
-            this.waitForDecoding.Reset();
-            await this.waitForDecoding.WithCancellation(cancellationToken);
+            await this.waitForDecoding.ResetAndGetAwaiterWithCancellation(cancellationToken);
         }
         else
         {
-            this.waitForParse.Reset();
-            await this.waitForParse.WithCancellation(cancellationToken);
+            await this.waitForParse.ResetAndGetAwaiterWithCancellation(cancellationToken);
         }
     }
 }

@@ -28,7 +28,10 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
     {
         try
         {
-            this.manualResetEvent.Wait(this.cancellationToken);
+            if(!this.manualResetEvent.IsSet)
+            {
+                this.manualResetEvent.Wait(this.cancellationToken);
+            }
         }
         catch(OperationCanceledException ex)
         {
@@ -36,6 +39,7 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
         }
         finally
         {
+            this.cancellationToken.ThrowIfCancellationRequested();
             continuation();
         }
     }

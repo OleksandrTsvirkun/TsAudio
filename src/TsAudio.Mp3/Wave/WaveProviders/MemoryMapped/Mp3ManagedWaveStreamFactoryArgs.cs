@@ -1,6 +1,4 @@
-﻿using System.Threading;
-
-using TsAudio.Utils.Streams;
+﻿using TsAudio.Utils.Streams;
 
 namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 

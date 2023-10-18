@@ -16,7 +16,7 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
 
     public static WavFormatMetadataReader Instance = new();
 
-    public async Task<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async ValueTask<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default)
     {
         var riffHeader = await this.ReadRiffHeader(stream, cancellationToken);
 
@@ -76,8 +76,6 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
             WaveFormat = waveFormat
         };
     }
-
-
 
     private async ValueTask<RiffHeader> ReadRiffHeader(Stream reader, CancellationToken cancellationToken = default)
     {

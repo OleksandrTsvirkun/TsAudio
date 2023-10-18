@@ -5,13 +5,13 @@ namespace TsAudio.Formats.Mp3;
 
 public struct Mp3Index : IEquatable<Mp3Index>
 {
-    public long StreamPosition { get; set; }
+    public long StreamPosition { get; init; }
 
-    public long SamplePosition { get; set; }
+    public long SamplePosition { get; init; }
 
-    public ushort SampleCount { get; set; }
+    public ushort SampleCount { get; init; }
 
-    public ushort FrameLength { get; set; }
+    public ushort FrameLength { get; init; }
 
     public bool Equals(Mp3Index other)
     {

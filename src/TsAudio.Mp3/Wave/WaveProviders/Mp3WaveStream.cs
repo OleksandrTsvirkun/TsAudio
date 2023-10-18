@@ -67,8 +67,7 @@ public abstract class Mp3WaveStream : WaveStream
     public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
     {
         using var locker = await this.repositionLock.LockAsync(cancellationToken);
-
-        this.waitForDecoding.Reset();
+        using var decodingLock = this.waitForDecoding.Lock();
 
         var last = this.indices.LastOrDefault();
 
@@ -85,12 +84,11 @@ public abstract class Mp3WaveStream : WaveStream
         this.index = Math.Max(0, midIndex - 2);
         await this.waveProvider.ResetAsync(cancellationToken);
         this.decompressor.Reset();
-        this.waitForDecoding.Set();
     }
 
     protected Task DecodeAsync()
     {
-        return Task.Factory.StartNew(this.DecodeAsyncImpl, this.decodeCts.Token).Unwrap();
+        return Task.Run(this.DecodeAsyncImpl, this.decodeCts.Token);
     }
 
     protected override void Dispose(bool disposing)
@@ -164,7 +162,6 @@ public abstract class Mp3WaveStream : WaveStream
 
     protected virtual async ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
     {
-        this.waitForDecoding.Reset();
-        await this.waitForDecoding.WithCancellation(cancellationToken);
+        await this.waitForDecoding.ResetAndGetAwaiterWithCancellation(cancellationToken);
     }
 }

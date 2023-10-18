@@ -54,7 +54,6 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         this.totalSamples = args.TotalSamples;
         this.waveStreams = new();
         this.consumeWaiter = new();
-        this.cts = null;
         this.bufferSize = args.BufferSize;
     }
 
@@ -153,8 +152,6 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
                 await reader.DisposeAsync();
             }
         }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
-
-
     }
 
     public void Dispose()

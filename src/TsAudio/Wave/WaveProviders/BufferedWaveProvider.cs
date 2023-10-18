@@ -69,8 +69,7 @@ public class BufferedWaveProvider : IWaveBuffer
             }
             else if(this.Count == 0 && this.AllowWait)
             {
-                this.readEvent.Reset();
-                await this.readEvent.WithCancellation(cancellationToken);
+                await this.readEvent.ResetAndGetAwaiterWithCancellation(cancellationToken);
                 continue;
             }
             else if(this.Count == 0 && !this.AllowWait)
@@ -126,7 +125,7 @@ public class BufferedWaveProvider : IWaveBuffer
             if(this.Count >= memory.Length)
             {
                 this.writeEvent.Reset();
-                await this.writeEvent.WithCancellation(cancellationToken);
+                await this.writeEvent.GetAwaiterWithCancellation(cancellationToken);
                 continue;
             }
 
