@@ -4,7 +4,7 @@ using System.Threading;
 
 namespace TsAudio.Utils.Streams;
 
-public interface IBufferedStreamManager : IStreamManager, IAsyncDisposable
+public interface IBufferedStreamManager : IStreamManager
 {
     long Buffered { get; }
 

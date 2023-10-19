@@ -9,13 +9,24 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 {
     private readonly IStreamManager streamManager;
     private readonly IWavFormatMetadataReader metadataReader;
-    private WavMetadata metadata;
+    private WavMetadata? metadata;
 
-    public long SampleCount => this.metadata.DataChunkLength / (this.metadata.WaveFormat.BitsPerSample / 8 * this.metadata.WaveFormat.Channels);
+    public long SampleCount 
+    { 
+        get
+        {
+            if(this.metadata is null)
+            {
+                throw new InvalidOperationException("Must call init first.");
+            }
+
+            return this.metadata.DataChunkLength / (this.metadata.WaveFormat.BitsPerSample / 8 * this.metadata.WaveFormat.Channels); 
+        }
+    } 
 
     public long? TotalSamples => this.SampleCount;
 
-    public WaveFormat WaveFormat => this.metadata.WaveFormat ?? throw new InvalidOperationException("Must call init first.");
+    public WaveFormat WaveFormat => this.metadata?.WaveFormat ?? throw new InvalidOperationException("Must call init first.");
 
     public WavWaveStreamFactory(IStreamManager streamManager, IWavFormatMetadataReader? metadataReader = null)
     {
@@ -23,7 +34,7 @@ public class WavWaveStreamFactory : IWaveStreamFactory
         this.metadataReader = metadataReader ?? WavFormatMetadataReader.Instance;
     }
 
-    public async ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public async Task InitAsync(CancellationToken cancellationToken = default)
     {
         using var stream = await this.streamManager.GetStreamAsync(StreamReadMode.Wait, cancellationToken);
 
@@ -32,22 +43,23 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 
     public async ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
+        if(this.metadata is null)
+        {
+            throw new ArgumentNullException(nameof(this.metadata));
+        }
+
         var args = new WavManagedWaveStreamArgs()
         {
-            Metadata = this.metadata,
+            Metadata = this.metadata ,
             Reader = await this.streamManager.GetStreamAsync(mode, cancellationToken),
         };
 
         return new WavManagedWaveStream(args);
     }
 
-    public void Dispose()
-    {   
-    }
-
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
-        return ValueTask.CompletedTask; 
+        await this.streamManager.DisposeAsync();
     }
 
 }

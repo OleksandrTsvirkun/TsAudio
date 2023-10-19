@@ -7,9 +7,14 @@ public class WavManagedWaveStream : WavWaveStream
         this.metadata = args.Metadata;
     }
 
-    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public override Task InitAsync(CancellationToken cancellationToken = default)
     {
+        if(this.metadata is null)
+        {
+            throw new ArgumentNullException(nameof(this.metadata));
+        }
+
         this.stream.Seek(this.metadata.DataChunkPosition, SeekOrigin.Begin);
-        return ValueTask.CompletedTask;
+        return Task.CompletedTask;
     }
 }

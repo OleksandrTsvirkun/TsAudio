@@ -72,8 +72,8 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
             DataChunkLength = dataChunkLength,
             DataChunkPosition = dataChunkPosition,
             IsRf64 = riffHeader.IsRf64,
-            RiffChunks = riffChunks,
-            WaveFormat = waveFormat
+            RiffChunks = riffChunks.AsReadOnly(),
+            WaveFormat = waveFormat ?? throw new InvalidOperationException("Could not read WaveFormat.")
         };
     }
 

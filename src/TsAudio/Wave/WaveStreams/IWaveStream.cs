@@ -15,7 +15,7 @@ public interface IWaveStream : IWaveProvider, IAsyncDisposable
 
     long Position { get; }
 
-    ValueTask InitAsync(CancellationToken cancellationToken = default);
+    Task InitAsync(CancellationToken cancellationToken = default);
 
     /// <summary>
     /// 
