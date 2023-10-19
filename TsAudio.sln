@@ -28,6 +28,8 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TsAudio.Drivers.Android", "src\TsAudio.Drivers.Android\TsAudio.Drivers.Android.csproj", "{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}"
+EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
 		Debug|Any CPU = Debug|Any CPU
@@ -50,6 +52,10 @@ Global
 		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -61,6 +67,7 @@ Global
 		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 		{084342A8-4D7B-4A4B-A99C-3D4B0948F551} = {B5D0B8EC-67DC-458B-9AE4-72AF760C495D}
 		{521075AD-7C0E-4087-A2BB-5600B125D632} = {084342A8-4D7B-4A4B-A99C-3D4B0948F551}
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {06DEE2F1-8630-4386-9B69-0D607FF1FD23}
