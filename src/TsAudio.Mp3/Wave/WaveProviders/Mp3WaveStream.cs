@@ -1,5 +1,4 @@
 ﻿using System;
-using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -54,6 +53,7 @@ public abstract class Mp3WaveStream : WaveStream
 
     public Mp3WaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null)
     {
+        this.index = 0;
         this.stream = stream;
         this.bufferSize = bufferSize;
         this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;

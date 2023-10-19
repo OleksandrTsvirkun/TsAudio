@@ -49,7 +49,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
     private readonly MemoryPool<byte> memoryPool;
     private readonly Mp3FrameMemoryPool mp3FramePool;
 
-    public Mp3FrameFactory(MemoryPool<byte> memoryPool = null, Mp3FrameMemoryPool mp3FramePool = null)
+    public Mp3FrameFactory(MemoryPool<byte>? memoryPool = null, Mp3FrameMemoryPool? mp3FramePool = null)
     {
         this.memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
         this.mp3FramePool = mp3FramePool ?? new Mp3FrameMemoryPool();
@@ -75,7 +75,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
             {
                 var streamPosition = input.Position - memory.Length - 4;
 
-                if (memory.Length < frame.FrameLength - 4)
+                if (memory.Length < frame!.FrameLength - 4)
                 {
                     toSkip = (frame.FrameLength - 4) - memory.Length;
 
@@ -133,7 +133,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
 
         if(this.TryReadFrame(ref buffer, out var frame))
         {
-            frame.RawData = originalBuffer;
+            frame!.RawData = originalBuffer;
             return frame;
         }
 

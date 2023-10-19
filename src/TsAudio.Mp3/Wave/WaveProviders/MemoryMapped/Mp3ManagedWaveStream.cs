@@ -34,9 +34,14 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
         });
     }
 
-    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public override Task InitAsync(CancellationToken cancellationToken = default)
     {
-        return ValueTask.CompletedTask;
+        if(cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        return  Task.CompletedTask;
     }
 
     protected override async ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)

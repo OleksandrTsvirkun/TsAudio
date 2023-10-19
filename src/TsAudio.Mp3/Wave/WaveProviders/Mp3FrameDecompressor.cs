@@ -27,7 +27,7 @@ public class Mp3FrameDecompressor : IMp3FrameDecompressor
         this.frame = new Mp3FrameWrapper();
     }
 
-    public IMemoryOwner<byte> DecompressFrame(Mp3Frame frame)
+    public IMemoryOwner<byte>? DecompressFrame(Mp3Frame frame)
     {
         this.frame.WrappedFrame = frame;
         return this.decoder.DecodeFrame(this.frame);

@@ -57,7 +57,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         this.bufferSize = args.BufferSize;
     }
 
-    public async ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public async Task InitAsync(CancellationToken cancellationToken = default)
     {
         this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
@@ -127,7 +127,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         ArgumentNullException.ThrowIfNull(nameof(framesEnumerator));
         ArgumentNullException.ThrowIfNull(nameof(reader));
 
-        return Task.Factory.StartNew(async () =>
+        return Task.Run(async () =>
         {
             try
             {
@@ -151,10 +151,30 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
                 await framesEnumerator.DisposeAsync();
                 await reader.DisposeAsync();
             }
-        }, cancellationToken, TaskCreationOptions.LongRunning, TaskScheduler.Default).Unwrap();
+        }, cancellationToken);
     }
 
     public void Dispose()
+    {
+        this.DisposeCore();
+
+        foreach(var waveStream in this.waveStreams)
+        {
+            waveStream.Dispose();
+        }
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        this.DisposeCore();
+
+        foreach(var waveStream in this.waveStreams)
+        {
+            await waveStream.DisposeAsync();
+        }
+    }
+
+    private void DisposeCore()
     {
         if(this.cts is not null && !this.cts.IsCancellationRequested)
         {
@@ -164,16 +184,6 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         this.cts?.Dispose();
 
         (this.indices as IDisposable)?.Dispose();
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        this.Dispose();
-
-        foreach(var waveStream in this.waveStreams)
-        {
-            await waveStream.DisposeAsync();
-        }
     }
 }
 
