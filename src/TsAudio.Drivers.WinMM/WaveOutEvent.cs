@@ -15,7 +15,7 @@ namespace TsAudio.Drivers.WinMM;
 /// </summary>
 public class WaveOutEvent : IWavePlayer, IWavePosition
 {
-    private readonly Lazy<SynchronizationContext> playbackSyncContextLazy = new(new SingleThreadSynchronizationContext("WaveOutEventPlayingThread #1", ThreadPriority.Highest));
+    private readonly Lazy<SynchronizationContext> playbackSyncContextLazy;
     private readonly Lazy<TaskScheduler> playbackTaskSchedulerLazy;
 
     private readonly object waveOutLock;
@@ -97,6 +97,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     /// </summary>
     public WaveOutEvent()
     {
+        this.playbackSyncContextLazy = new(() => new SingleThreadSynchronizationContext("WaveOutEvent Playing Thread #1", ThreadPriority.Highest));
         this.playbackTaskSchedulerLazy = new Lazy<TaskScheduler>(this.GetTaskScheduler);
         this.syncContext = GetSynchronizationContext();
         this.waveOutLock = new object();
@@ -188,6 +189,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
         var scheduler = TaskScheduler.FromCurrentSynchronizationContext();
 
         SynchronizationContext.SetSynchronizationContext(syncContext);
+
         return scheduler;
     }
 
@@ -354,7 +356,7 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
     {
         while(this.PlaybackState != PlaybackState.Stopped && !cancellationToken.IsCancellationRequested)
         {
-            this.callbackEvent.WaitOne();
+            await Task.Run(this.callbackEvent.WaitOne, cancellationToken);
 
             if(this.PlaybackState != PlaybackState.Playing)
             {
