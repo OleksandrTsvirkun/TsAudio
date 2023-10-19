@@ -2,7 +2,6 @@
 using System.Buffers;
 using System.Runtime.InteropServices;
 
-using TsAudio.Utils.Memory;
 using TsAudio.Utils.Mp3;
 
 namespace TsAudio.Decoders.Mp3;
@@ -13,7 +12,7 @@ public class MpegFrameDecoder
     private LayerIIDecoder layerIIDecoder;
     private LayerIIIDecoder layerIIIDecoder;
 
-    private float[] eqFactors;
+    private float[]? eqFactors;
 
     // channel buffers for getting data out of the decoders...
     // we do it this way so the stereo interleaving code is in one place: DecodeFrameImpl(...)
@@ -71,7 +70,7 @@ public class MpegFrameDecoder
     /// <param name="dest">Destination buffer. Decoded PCM (single-precision floating point array) will be written into it.</param>
     /// <param name="destOffset">Writing offset on the destination buffer.</param>
     /// <returns></returns>
-    public IMemoryOwner<byte> DecodeFrame(IMpegFrame frame)
+    public IMemoryOwner<byte>? DecodeFrame(IMpegFrame frame)
     {
         if(frame == null)
         {
@@ -80,17 +79,17 @@ public class MpegFrameDecoder
 
         frame.Reset();
 
-        LayerDecoderBase? curDecoder = this.InitDecoder(frame);
+        var decoder = this.InitDecoder(frame);
 
-        if(curDecoder is null)
+        if(decoder is null)
         {
-            return default;
+            return null;
         }
 
-        curDecoder.SetEQ(eqFactors);
-        curDecoder.StereoMode = StereoMode;
+        decoder.SetEQ(this.eqFactors);
+        decoder.StereoMode = this.StereoMode;
 
-        var cnt = curDecoder.DecodeFrame(frame, this.ch0, this.ch1);
+        var cnt = decoder.DecodeFrame(frame, this.ch0, this.ch1);
 
         if(frame.ChannelMode == MpegChannelMode.Mono)
         {
