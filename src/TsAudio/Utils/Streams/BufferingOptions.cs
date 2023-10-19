@@ -1,4 +1,4 @@
-﻿namespace TsAudio.Utils.Streams.MemoryMapped;
+﻿namespace TsAudio.Utils.Streams;
 
 public class BufferingOptions
 {

@@ -2,8 +2,6 @@
 using System.Threading.Tasks;
 using System.Threading;
 
-using TsAudio.Utils.Streams.MemoryMapped;
-
 namespace TsAudio.Utils.Streams;
 
 public interface IBufferedStreamManager : IStreamManager, IAsyncDisposable
