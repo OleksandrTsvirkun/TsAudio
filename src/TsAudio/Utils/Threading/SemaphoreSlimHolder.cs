@@ -13,6 +13,11 @@ public struct SemaphoreSlimHolder : IDisposable
         this.semaphore = semaphore;
     }
 
+    void IDisposable.Dispose()
+    {
+        this.Dispose();
+    }
+
     public void Dispose()
     {
         if(!this.disposed)

@@ -13,6 +13,11 @@ public struct ManualResetEventSlimHolder : IDisposable
         this.manualResetEvent = manualResetEvent;
     }
 
+    void IDisposable.Dispose()
+    {
+        this.Dispose();
+    }
+
     public void Dispose()
     {
         if(!this.disposed)
