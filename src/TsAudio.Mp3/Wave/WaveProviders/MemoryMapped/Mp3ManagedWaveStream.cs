@@ -2,6 +2,7 @@
 using System.Threading;
 
 using TsAudio.Utils.Threading;
+using System.Diagnostics;
 
 namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 
@@ -19,16 +20,28 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
         this.TotalSamples = args.TotalSamples;
         this.decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
         this.waveFormat = this.decompressor.WaveFormat;
-        this.waveProvider = new BufferedWaveProvider(this.WaveFormat, ushort.MaxValue * 4);
+        var bufferSize = 1152 * this.waveFormat.BitsPerSample / 8 * this.waveFormat.Channels * 2;
+        this.waveProvider = new BufferedWaveProvider(this.mp3WaveFormat, bufferSize);
         this.parsing = args.Analyzing;
         this.waitForParse = args.ParseWait;
         this.decodeCts = new();
-        this.decoding = this.DecodeAsync();
+        this.decoding = this.DecodeAsync().ContinueWith(x =>
+        {
+            if(x.IsFaulted)
+            {
+                Debug.WriteLine(x.Exception?.Message);
+            }
+        });
     }
 
-    public override ValueTask InitAsync(CancellationToken cancellationToken = default)
+    public override Task InitAsync(CancellationToken cancellationToken = default)
     {
-        return ValueTask.CompletedTask;
+        if(cancellationToken.IsCancellationRequested)
+        {
+            return Task.FromCanceled(cancellationToken);
+        }
+
+        return  Task.CompletedTask;
     }
 
     protected override async ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
@@ -36,13 +49,11 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
         if(this.parsing.IsCompleted)
         {
             await this.waveProvider.FlushAsync(cancellationToken);
-            this.waitForDecoding.Reset();
-            await this.waitForDecoding.WaitAsync(cancellationToken);
+            await this.waitForDecoding.ResetAndGetAwaiterWithCancellation(cancellationToken);
         }
         else
         {
-            this.waitForParse.Reset();
-            await this.waitForParse.WaitAsync(cancellationToken);
+            await this.waitForParse.ResetAndGetAwaiterWithCancellation(cancellationToken);
         }
     }
 }

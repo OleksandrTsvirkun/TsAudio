@@ -13,8 +13,6 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{C3A82F01-4B4
 EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "test", "test", "{D7CEA09C-AB83-432F-893B-2ACD0CEB2E43}"
 EndProject
-Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio.WaveForm.Skia", "src\TsAudio.WaveForm.Skia\TsAudio.WaveForm.Skia.csproj", "{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}"
-EndProject
 Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "build", "build", "{B5D0B8EC-67DC-458B-9AE4-72AF760C495D}"
 	ProjectSection(SolutionItems) = preProject
 		GitVersion.yml = GitVersion.yml
@@ -27,6 +25,10 @@ Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "workflows", "workflows", "{
 		.github\workflows\build.yml = .github\workflows\build.yml
 		.github\workflows\release.yml = .github\workflows\release.yml
 	EndProjectSection
+EndProject
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "TsAudio.Wav", "src\TsAudio.Wav\TsAudio.Wav.csproj", "{90D27002-CE44-4DB4-B2AC-361AA83129A0}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "TsAudio.Drivers.Android", "src\TsAudio.Drivers.Android\TsAudio.Drivers.Android.csproj", "{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -46,10 +48,18 @@ Global
 		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2}.Release|Any CPU.Build.0 = Release|Any CPU
-		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
-		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Debug|Any CPU.Build.0 = Debug|Any CPU
-		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.ActiveCfg = Release|Any CPU
-		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6}.Release|Any CPU.Build.0 = Release|Any CPU
+		{90D27002-CE44-4DB4-B2AC-361AA83129A0}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{90D27002-CE44-4DB4-B2AC-361AA83129A0}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{90D27002-CE44-4DB4-B2AC-361AA83129A0}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{90D27002-CE44-4DB4-B2AC-361AA83129A0}.Release|Any CPU.Build.0 = Release|Any CPU
+		{0C9BFABC-D0CE-41C8-A475-E39C3AC8BA89}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{0C9BFABC-D0CE-41C8-A475-E39C3AC8BA89}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{0C9BFABC-D0CE-41C8-A475-E39C3AC8BA89}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{0C9BFABC-D0CE-41C8-A475-E39C3AC8BA89}.Release|Any CPU.Build.0 = Release|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -58,9 +68,10 @@ Global
 		{E8740DBC-D78F-41E7-885D-AB15751CC571} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 		{03E945CB-D71B-48A0-93CC-89372C8FD266} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 		{02E1FDE7-D1AA-4E44-B4BD-8F61566F02D2} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
-		{A9E58505-AA4F-4AD8-B772-2EB4E79F5AA6} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 		{084342A8-4D7B-4A4B-A99C-3D4B0948F551} = {B5D0B8EC-67DC-458B-9AE4-72AF760C495D}
 		{521075AD-7C0E-4087-A2BB-5600B125D632} = {084342A8-4D7B-4A4B-A99C-3D4B0948F551}
+		{90D27002-CE44-4DB4-B2AC-361AA83129A0} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
+		{B3CB7AD0-C752-461B-80C0-2F6DC35C53DE} = {C3A82F01-4B44-4499-A11E-6375C4977B04}
 	EndGlobalSection
 	GlobalSection(ExtensibilityGlobals) = postSolution
 		SolutionGuid = {06DEE2F1-8630-4386-9B69-0D607FF1FD23}

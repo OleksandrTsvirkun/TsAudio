@@ -12,6 +12,7 @@ using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
 
 namespace TsAudio.Wave.WaveProviders;
+
 public abstract class Mp3WaveStream : WaveStream
 {
     protected readonly Stream stream;
@@ -28,6 +29,7 @@ public abstract class Mp3WaveStream : WaveStream
     protected CancellationTokenSource decodeCts;
     protected Task decoding;
     protected int index;
+    protected bool disposed;
     protected Mp3WaveFormat mp3WaveFormat;
     protected WaveFormat waveFormat;
 
@@ -51,6 +53,7 @@ public abstract class Mp3WaveStream : WaveStream
 
     public Mp3WaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null)
     {
+        this.index = 0;
         this.stream = stream;
         this.bufferSize = bufferSize;
         this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;
@@ -64,8 +67,7 @@ public abstract class Mp3WaveStream : WaveStream
     public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
     {
         using var locker = await this.repositionLock.LockAsync(cancellationToken);
-
-        this.waitForDecoding.Reset();
+        using var decodingLock = this.waitForDecoding.Lock();
 
         var last = this.indices.LastOrDefault();
 
@@ -82,31 +84,24 @@ public abstract class Mp3WaveStream : WaveStream
         this.index = Math.Max(0, midIndex - 2);
         await this.waveProvider.ResetAsync(cancellationToken);
         this.decompressor.Reset();
-        this.waitForDecoding.Set();
     }
 
     protected Task DecodeAsync()
     {
-        return Task.Factory.StartNew(DecodeAsyncImpl,
-            this.decodeCts.Token, 
-            TaskCreationOptions.AttachedToParent 
-            | TaskCreationOptions.LongRunning, 
-            TaskScheduler.Default)
-            .Unwrap();
+        return Task.Run(this.DecodeAsyncImpl, this.decodeCts.Token);
     }
 
     protected override void Dispose(bool disposing)
     {
         if(disposing)
         {
-            this.decodeCts?.Cancel();
-            this.decodeCts?.Dispose();
             this.repositionLock.Dispose();
             this.waitForDecoding.Dispose();
             this.decompressor?.Dispose();
         }
 
         base.Dispose(disposing);
+        this.disposed = true;
     }
 
     protected virtual async Task DecodeAsyncImpl()
@@ -118,7 +113,7 @@ public abstract class Mp3WaveStream : WaveStream
             throw new ArgumentException("Not found any MP3 frame indices.", nameof(this.indices.Count));
         }
 
-        while(!cancellationToken.IsCancellationRequested)
+        while(!cancellationToken.IsCancellationRequested && !this.disposed)
         {
             try
             {
@@ -165,9 +160,8 @@ public abstract class Mp3WaveStream : WaveStream
         }
     }
 
-    protected virtual ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
+    protected virtual async ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
     {
-        this.waitForDecoding.Reset();
-        return this.waitForDecoding.WaitAsync(cancellationToken);
+        await this.waitForDecoding.ResetAndGetAwaiterWithCancellation(cancellationToken);
     }
 }

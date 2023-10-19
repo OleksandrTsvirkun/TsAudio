@@ -47,12 +47,12 @@ public class Mp3FrameFactory : IMp3FrameFactory
     private static readonly int[] sampleRatesVersion25 = new int[] { 11025, 12000, 8000 };
 
     private readonly MemoryPool<byte> memoryPool;
-    private readonly Mp3FramePool mp3FramePool;
+    private readonly Mp3FrameMemoryPool mp3FramePool;
 
-    public Mp3FrameFactory(MemoryPool<byte> memoryPool = null, Mp3FramePool mp3FramePool = null)
+    public Mp3FrameFactory(MemoryPool<byte>? memoryPool = null, Mp3FrameMemoryPool? mp3FramePool = null)
     {
         this.memoryPool = memoryPool ?? MemoryPool<byte>.Shared;
-        this.mp3FramePool = mp3FramePool ?? new Mp3FramePool();
+        this.mp3FramePool = mp3FramePool ?? new Mp3FrameMemoryPool();
     }
 
     public async IAsyncEnumerable<Mp3FrameIndex> LoadFrameIndicesAsync(Stream input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -61,6 +61,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
         Memory<byte> memory = default;
         var samplePosition = 0L;
         var toSkip = 0;
+
         do
         {
             input.Position += toSkip;
@@ -74,7 +75,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
             {
                 var streamPosition = input.Position - memory.Length - 4;
 
-                if (memory.Length < frame.FrameLength - 4)
+                if (memory.Length < frame!.FrameLength - 4)
                 {
                     toSkip = (frame.FrameLength - 4) - memory.Length;
 
@@ -84,7 +85,6 @@ public class Mp3FrameFactory : IMp3FrameFactory
                 {
                     memory = memory.Slice(frame.FrameLength - 4);
                 }
-
 
                 var index = new Mp3Index()
                 {
@@ -103,6 +103,11 @@ public class Mp3FrameFactory : IMp3FrameFactory
                 };
             }
 
+            if (read == 0)
+            {
+                yield break;
+            }
+
             memory.CopyTo(bufferOwner.Memory);
 
         } while(input.Position < input.Length);
@@ -111,7 +116,10 @@ public class Mp3FrameFactory : IMp3FrameFactory
 
     public async ValueTask<Mp3Frame?> LoadFrameAsync(Stream stream, Mp3Index index, CancellationToken cancellationToken = default)
     {
-        stream.Position = index.StreamPosition;
+        if (stream.Position != index.StreamPosition)
+        {
+            stream.Position = index.StreamPosition;
+        }
 
         var originalBuffer = this.mp3FramePool.Rent(index.FrameLength);
         var buffer = originalBuffer.Memory;
@@ -125,7 +133,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
 
         if(this.TryReadFrame(ref buffer, out var frame))
         {
-            frame.RawData = originalBuffer;
+            frame!.RawData = originalBuffer;
             return frame;
         }
 

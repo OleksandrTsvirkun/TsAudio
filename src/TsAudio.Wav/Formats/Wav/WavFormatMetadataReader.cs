@@ -16,7 +16,7 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
 
     public static WavFormatMetadataReader Instance = new();
 
-    public async Task<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default)
+    public async ValueTask<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default)
     {
         var riffHeader = await this.ReadRiffHeader(stream, cancellationToken);
 
@@ -72,12 +72,10 @@ public class WavFormatMetadataReader : IWavFormatMetadataReader
             DataChunkLength = dataChunkLength,
             DataChunkPosition = dataChunkPosition,
             IsRf64 = riffHeader.IsRf64,
-            RiffChunks = riffChunks,
-            WaveFormat = waveFormat
+            RiffChunks = riffChunks.AsReadOnly(),
+            WaveFormat = waveFormat ?? throw new InvalidOperationException("Could not read WaveFormat.")
         };
     }
-
-
 
     private async ValueTask<RiffHeader> ReadRiffHeader(Stream reader, CancellationToken cancellationToken = default)
     {

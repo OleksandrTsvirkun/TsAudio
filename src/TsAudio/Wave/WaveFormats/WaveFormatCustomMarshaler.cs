@@ -1,70 +1,68 @@
 ﻿using System;
 using System.Runtime.InteropServices;
-using TsAudio.Wave.WaveFormats;
 
 // ReSharper disable once CheckNamespace
-namespace TsAudio.Wave.WaveFormats
+namespace TsAudio.Wave.WaveFormats;
+
+/// <summary>
+/// Custom marshaller for WaveFormat structures
+/// </summary>
+public sealed class WaveFormatCustomMarshaler : ICustomMarshaler
 {
+    private static WaveFormatCustomMarshaler marshaler = null;
+    
     /// <summary>
-    /// Custom marshaller for WaveFormat structures
+    /// Gets the instance of this marshaller
     /// </summary>
-    public sealed class WaveFormatCustomMarshaler : ICustomMarshaler
+    /// <param name="cookie"></param>
+    /// <returns></returns>
+    public static ICustomMarshaler GetInstance(string cookie)
     {
-        private static WaveFormatCustomMarshaler marshaler = null;
+        if (marshaler == null)
+        {
+            marshaler = new WaveFormatCustomMarshaler();
+        }
+        return marshaler;
+    }
+
+    /// <summary>
+    /// Clean up managed data
+    /// </summary>
+    public void CleanUpManagedData(object ManagedObj)
+    {
         
-        /// <summary>
-        /// Gets the instance of this marshaller
-        /// </summary>
-        /// <param name="cookie"></param>
-        /// <returns></returns>
-        public static ICustomMarshaler GetInstance(string cookie)
-        {
-            if (marshaler == null)
-            {
-                marshaler = new WaveFormatCustomMarshaler();
-            }
-            return marshaler;
-        }
+    }
 
-        /// <summary>
-        /// Clean up managed data
-        /// </summary>
-        public void CleanUpManagedData(object ManagedObj)
-        {
-            
-        }
+    /// <summary>
+    /// Clean up native data
+    /// </summary>
+    /// <param name="pNativeData"></param>
+    public void CleanUpNativeData(IntPtr pNativeData)
+    {
+        Marshal.FreeHGlobal(pNativeData);
+    }
 
-        /// <summary>
-        /// Clean up native data
-        /// </summary>
-        /// <param name="pNativeData"></param>
-        public void CleanUpNativeData(IntPtr pNativeData)
-        {
-            Marshal.FreeHGlobal(pNativeData);
-        }
+    /// <summary>
+    /// Get native data size
+    /// </summary>        
+    public int GetNativeDataSize()
+    {
+        throw new NotImplementedException();
+    }
 
-        /// <summary>
-        /// Get native data size
-        /// </summary>        
-        public int GetNativeDataSize()
-        {
-            throw new NotImplementedException();
-        }
+    /// <summary>
+    /// Marshal managed to native
+    /// </summary>
+    public IntPtr MarshalManagedToNative(object ManagedObj)
+    {
+        return WaveFormat.MarshalToPtr((WaveFormat)ManagedObj);            
+    }
 
-        /// <summary>
-        /// Marshal managed to native
-        /// </summary>
-        public IntPtr MarshalManagedToNative(object ManagedObj)
-        {
-            return WaveFormat.MarshalToPtr((WaveFormat)ManagedObj);            
-        }
-
-        /// <summary>
-        /// Marshal Native to Managed
-        /// </summary>
-        public object MarshalNativeToManaged(IntPtr pNativeData)
-        {
-            return WaveFormat.MarshalFromPtr(pNativeData);
-        }
+    /// <summary>
+    /// Marshal Native to Managed
+    /// </summary>
+    public object MarshalNativeToManaged(IntPtr pNativeData)
+    {
+        return WaveFormat.MarshalFromPtr(pNativeData);
     }
 }

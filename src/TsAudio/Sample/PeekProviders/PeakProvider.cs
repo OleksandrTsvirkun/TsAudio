@@ -36,7 +36,24 @@ public abstract class PeakProvider : IPeakProvider
         this.BufferOwner = this.Pool.Rent(samplesPerPeak);
     }
 
-    public abstract ValueTask<bool> MoveNextAsync();
+    public async ValueTask<bool> MoveNextAsync()
+    {
+        var buffer = this.BufferOwner.Memory.Slice(0, this.SamplesPerPeak);
+        var read = await this.Provider.ReadAsync(buffer, this.CancellationToken);
+
+        if(read == 0)
+        {
+            return false;
+        }
+
+        var memory = this.BufferOwner.Memory.Slice(0, read);
+
+        this.Current = this.CalculatePeak(memory.Span);
+
+        return true;
+    }
+
+    protected abstract PeakInfo CalculatePeak(ReadOnlySpan<float> memory);
 
     public async ValueTask DisposeAsync()
     {
@@ -49,6 +66,6 @@ public abstract class PeakProvider : IPeakProvider
             disposable.Dispose();
         }
 
-        this.BufferOwner.Dispose();
+        this.BufferOwner?.Dispose();
     }
 }

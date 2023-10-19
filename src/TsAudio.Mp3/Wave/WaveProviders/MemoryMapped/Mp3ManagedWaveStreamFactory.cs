@@ -1,6 +1,7 @@
 ﻿using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.IO;
 using System.Threading;
 using System.Threading.Tasks;
@@ -18,6 +19,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
     private readonly IMp3FrameFactory frameFactory;
     private readonly ConcurrentBag<Mp3ManagedWaveStream> waveStreams;
     private readonly ManualResetEventSlim consumeWaiter;
+    private readonly int bufferSize;
     private List<Mp3Index> indices;
     private CancellationTokenSource? cts;
     private Task? analyzing;
@@ -40,7 +42,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
     }
 
     public long? TotalSamples => this.totalSamples.HasValue
-                                        ? this.totalSamples
+                                        ? this.totalSamples.Value
                                         : this.Analyzing.IsCompleted
                                             ? this.SampleCount
                                             : null;
@@ -52,27 +54,25 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         this.totalSamples = args.TotalSamples;
         this.waveStreams = new();
         this.consumeWaiter = new();
-        this.cts = null;
+        this.bufferSize = args.BufferSize;
     }
 
-    public async ValueTask InitAsync(CancellationToken cancellationTokenExternal = default)
+    public async Task InitAsync(CancellationToken cancellationToken = default)
     {
-        this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationTokenExternal);
+        this.cts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
 
-        var cancellationToken = this.cts.Token;
+        var indicesReader = await this.bufferedStreamManager.GetStreamAsync(cancellationToken: this.cts.Token);
 
-        var indicesReader = await this.bufferedStreamManager.GetStreamAsync(cancellationToken: cancellationToken);
+        var framesEnumerator = this.frameFactory.LoadFrameIndicesAsync(indicesReader, this.bufferSize, this.cts.Token).GetAsyncEnumerator(this.cts.Token);
 
-        var framesEnumerator = this.frameFactory.LoadFrameIndicesAsync(indicesReader, 4096, cancellationToken).GetAsyncEnumerator(cancellationToken);
-
-        var first = await this.ReadFirstFrameAsync(framesEnumerator, cancellationToken);
+        var first = await this.ReadFirstFrameAsync(framesEnumerator, this.cts.Token);
 
         this.mp3WaveFormat = new Mp3WaveFormat(first.Frame.SampleRate,
                                                 first.Frame.ChannelMode == ChannelMode.Mono ? 1 : 2,
                                                 first.Frame.FrameLength,
                                                 first.Frame.BitRate);
 
-        this.analyzing = this.ParseAsync(framesEnumerator, indicesReader, cancellationToken);
+        this.analyzing = this.ParseAsync(framesEnumerator, indicesReader, this.cts.Token);
     }
 
     private async ValueTask<Mp3FrameIndex> ReadFirstFrameAsync(IAsyncEnumerator<Mp3FrameIndex> framesEnumerator, CancellationToken cancellationToken = default)
@@ -114,7 +114,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
             Mp3WaveFormat = this.Mp3WaveFormat,
             Analyzing = this.Analyzing,
             Reader = reader,
-            BufferSize = ushort.MaxValue,
+            BufferSize = this.bufferSize,
         };
 
         var waveProvider = new Mp3ManagedWaveStream(args);
@@ -127,9 +127,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         ArgumentNullException.ThrowIfNull(nameof(framesEnumerator));
         ArgumentNullException.ThrowIfNull(nameof(reader));
 
-        return Task.Factory.StartNew(ParseAsyncImpl, cancellationToken, TaskCreationOptions.AttachedToParent | TaskCreationOptions.LongRunning, TaskScheduler.Default);
-
-        async Task ParseAsyncImpl()
+        return Task.Run(async () =>
         {
             try
             {
@@ -144,34 +142,48 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
             {
 
             }
+            catch(Exception ex)
+            {
+                Debug.WriteLine(ex.Message);
+            }
             finally
             {
                 await framesEnumerator.DisposeAsync();
                 await reader.DisposeAsync();
             }
-        }
+        }, cancellationToken);
     }
 
     public void Dispose()
     {
-        if(!this.cts?.IsCancellationRequested ?? false)
+        this.DisposeCore();
+
+        foreach(var waveStream in this.waveStreams)
         {
-            this.cts?.Cancel();
+            waveStream.Dispose();
         }
-
-        this.cts?.Dispose();
-
-        (this.indices as IDisposable)?.Dispose();
     }
 
     public async ValueTask DisposeAsync()
     {
-        this.Dispose();
+        this.DisposeCore();
 
         foreach(var waveStream in this.waveStreams)
         {
             await waveStream.DisposeAsync();
         }
+    }
+
+    private void DisposeCore()
+    {
+        if(this.cts is not null && !this.cts.IsCancellationRequested)
+        {
+            this.cts.Cancel();
+        }
+
+        this.cts?.Dispose();
+
+        (this.indices as IDisposable)?.Dispose();
     }
 }
 

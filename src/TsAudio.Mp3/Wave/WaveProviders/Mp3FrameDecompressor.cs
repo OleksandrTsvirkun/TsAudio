@@ -23,12 +23,11 @@ public class Mp3FrameDecompressor : IMp3FrameDecompressor
     {
         // we assume waveFormat was calculated from the first frame already
         this.WaveFormat = WaveFormat.CreateIeeeFloatWaveFormat(waveFormat.SampleRate, waveFormat.Channels);
-
         this.decoder = new MpegFrameDecoder();
         this.frame = new Mp3FrameWrapper();
     }
 
-    public IMemoryOwner<byte> DecompressFrame(Mp3Frame frame)
+    public IMemoryOwner<byte>? DecompressFrame(Mp3Frame frame)
     {
         this.frame.WrappedFrame = frame;
         return this.decoder.DecodeFrame(this.frame);

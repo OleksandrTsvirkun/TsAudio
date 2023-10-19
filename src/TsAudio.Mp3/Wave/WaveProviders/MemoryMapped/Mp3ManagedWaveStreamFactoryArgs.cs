@@ -4,8 +4,10 @@ namespace TsAudio.Wave.WaveProviders.MemoryMapped;
 
 public class Mp3ManagedWaveStreamFactoryArgs
 {
-    public IStreamManager StreamManager { get; set; }
+    public required IStreamManager StreamManager { get; init; }
 
-    public long? TotalSamples { get; set; }
+    public required long? TotalSamples { get; init; }
+
+    public required int BufferSize { get; init; }
 }
 

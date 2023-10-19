@@ -16,7 +16,7 @@ public abstract class WaveStream : IWaveStream, IDisposable
 
     public abstract ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default);
 
-    public abstract ValueTask InitAsync(CancellationToken cancellationToken = default);
+    public abstract Task InitAsync(CancellationToken cancellationToken = default);
 
     public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
 

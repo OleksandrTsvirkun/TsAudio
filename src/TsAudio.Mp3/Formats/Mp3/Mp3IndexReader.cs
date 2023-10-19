@@ -18,7 +18,7 @@ public class Mp3IndexStreamReader : IMp3IndexStreamReader
     private IMemoryOwner<byte> bufferOwner;
     private bool allDataBuffered;
 
-    public Mp3IndexStreamReader(Stream stream, int bufferSize = 4096, MemoryPool<byte> memoryPool = null, bool leaveOpen = false)
+    public Mp3IndexStreamReader(Stream stream, int bufferSize = 4096, MemoryPool<byte>? memoryPool = null, bool leaveOpen = false)
     {
         this.stream = stream;
         this.bufferSize = bufferSize;

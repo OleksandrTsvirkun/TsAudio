@@ -53,7 +53,9 @@ public class ByteEncoding : Encoding
         for(var n = 0; n < count; n++)
         {
             if(bytes[index + n] == 0)
+            {
                 return n;
+            }
         }
         return count;
     }

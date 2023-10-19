@@ -1,8 +1,6 @@
 ﻿using System;
 using System.Numerics;
 using System.Runtime.CompilerServices;
-using System.Threading;
-using System.Threading.Tasks;
 
 namespace TsAudio.Sample.PeekProviders;
 
@@ -10,29 +8,14 @@ public class AveragePeakProvider : PeakProvider
 {
     private readonly float scale;
 
+    public float Scale => this.scale;
+
     public AveragePeakProvider(float scale = 1f)
     {
         this.scale = scale;
     }
 
-    public override async ValueTask<bool> MoveNextAsync()
-    {
-        var buffer = this.BufferOwner.Memory.Slice(0, this.SamplesPerPeak);
-        var read = await this.Provider.ReadAsync(buffer, this.CancellationToken);
-
-        if (read == 0)
-        {
-            return false;
-        }
-
-        var memory = this.BufferOwner.Memory.Slice(0, read);
-
-        this.Current = this.CalculatePeak(memory.Span);
-
-        return true;
-    }
-
-    private PeakInfo CalculatePeak(ReadOnlySpan<float> span)
+    protected override PeakInfo CalculatePeak(ReadOnlySpan<float> span)
     {
         var left = 0.0f;
         var right = 0.0f;

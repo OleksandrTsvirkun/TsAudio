@@ -6,7 +6,7 @@ using TsAudio.Utils.Streams;
 
 namespace TsAudio.Wave.WaveStreams;
 
-public interface IWaveStreamFactory : IDisposable, IAsyncDisposable
+public interface IWaveStreamFactory : IAsyncDisposable
 {
     long SampleCount { get; }
 
@@ -14,5 +14,5 @@ public interface IWaveStreamFactory : IDisposable, IAsyncDisposable
 
     ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default);
 
-    ValueTask InitAsync(CancellationToken cancellationToken = default);
+    Task InitAsync(CancellationToken cancellationToken = default);
 }

@@ -5,10 +5,10 @@ namespace TsAudio.Utils.Mp3;
 
 internal class Mp3FrameMemoryOwner : IMemoryOwner<byte>
 {
-    private readonly Mp3FramePool pool;
+    private readonly Mp3FrameMemoryPool pool;
     private readonly byte[] buffer;
 
-    internal Mp3FrameMemoryOwner(Mp3FramePool pool, byte[] buffer)
+    internal Mp3FrameMemoryOwner(Mp3FrameMemoryPool pool, byte[] buffer)
     {
         this.pool = pool;
         this.buffer = buffer;
