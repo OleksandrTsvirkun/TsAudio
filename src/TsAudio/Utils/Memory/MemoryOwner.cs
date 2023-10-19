@@ -21,6 +21,11 @@ public struct MemoryOwner<T> : IMemoryOwner<T>
         this.Memory = Memory<T>.Empty;
     }
 
+    void IDisposable.Dispose()
+    {
+        this.Dispose();
+    }
+
     public void Dispose()
     {
         this.memoryOwner?.Dispose();
