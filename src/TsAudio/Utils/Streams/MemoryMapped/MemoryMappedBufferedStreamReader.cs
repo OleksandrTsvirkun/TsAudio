@@ -6,9 +6,9 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Streams.MemoryMapped;
 
-public class MemoryMappedStreamManagerReader : Stream
+public class MemoryMappedBufferedStreamReader : Stream
 {
-    private readonly MemoryMappedStreamManager streamManager;
+    private readonly MemoryMappedBufferedStreamManager streamManager;
     private readonly MemoryMappedViewStream reader;
 
     private bool disposed;
@@ -29,7 +29,7 @@ public class MemoryMappedStreamManagerReader : Stream
 
     public StreamReadMode Mode { get; }
 
-    internal MemoryMappedStreamManagerReader(MemoryMappedStreamManager streamManager, StreamReadMode mode = StreamReadMode.Wait)
+    internal MemoryMappedBufferedStreamReader(MemoryMappedBufferedStreamManager streamManager, StreamReadMode mode = StreamReadMode.Wait)
     {
         this.streamManager = streamManager;
         this.Mode = mode;
@@ -231,8 +231,6 @@ public class MemoryMappedStreamManagerReader : Stream
 
         this.disposed = true;
     }
-
-
 
     public sealed override void Flush()
     {
