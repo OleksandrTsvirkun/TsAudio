@@ -48,10 +48,11 @@ public class WavWaveStreamFactory : IWaveStreamFactory
             throw new ArgumentNullException(nameof(this.metadata));
         }
 
+        var reader = await this.streamManager.GetStreamAsync(mode, cancellationToken);
         var args = new WavManagedWaveStreamArgs()
         {
             Metadata = this.metadata ,
-            Reader = await this.streamManager.GetStreamAsync(mode, cancellationToken),
+            Reader = reader,
         };
 
         return new WavManagedWaveStream(args);
@@ -59,7 +60,7 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 
     public async ValueTask DisposeAsync()
     {
-        await this.streamManager.DisposeAsync();
+        await this.streamManager.DisposeAsync().ConfigureAwait(false);
     }
 
 }
