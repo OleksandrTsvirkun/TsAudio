@@ -29,17 +29,18 @@ public class BufferedWaveProvider : IWaveBuffer
     protected int writeGate;
     protected bool isEmpty;
     protected bool isFlushed;
+    protected bool isDisposed;
 
     /// <summary>
     /// Gets the WaveFormat
     /// </summary>
     public WaveFormat WaveFormat { get; }
 
-    public int Count => this.isEmpty ? 0 : this.writePosition > this.readPosition
-                                    ? this.writePosition - this.readPosition
-                                    : this.memory.Length - this.readPosition + this.writePosition;
-
-    public bool AllowWait { get; set; } = true;
+    public int Count => this.isEmpty && this.writePosition == this.readPosition 
+                                    ? 0 
+                                    : this.writePosition > this.readPosition
+                                        ? this.writePosition - this.readPosition
+                                        : this.memory.Length - this.readPosition + this.writePosition;
 
     public int WriteGate
     {
@@ -61,20 +62,18 @@ public class BufferedWaveProvider : IWaveBuffer
     public async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var read = 0;
-        while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
+
+        while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested && !this.isDisposed)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if(this.Count == 0 && this.isFlushed)
             {
                 break;
             }
-            else if(this.Count == 0 && this.AllowWait)
+            else if(this.Count == 0)
             {
-                await this.readEvent.ResetAndGetAwaiterWithCancellation(cancellationToken);
+                await this.readEvent.ResetAndGetAwaiterWithSoftCancellation(cancellationToken);
                 continue;
-            }
-            else if(this.Count == 0 && !this.AllowWait)
-            {
-                break;
             }
 
             var writePosition = this.writePosition;
@@ -107,6 +106,7 @@ public class BufferedWaveProvider : IWaveBuffer
 
             buffer = buffer.Slice(toCopy);
         }
+
         return read;
     }
 
@@ -120,11 +120,12 @@ public class BufferedWaveProvider : IWaveBuffer
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
         var memory = this.memoryOwner.Memory;
-        while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested)
+        while(buffer.Length > 0 && !cancellationToken.IsCancellationRequested && !this.isDisposed)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if(this.Count >= memory.Length)
             {
-                await this.writeEvent.ResetAndGetAwaiterWithCancellation(cancellationToken);
+                await this.writeEvent.ResetAndGetAwaiterWithSoftCancellation(cancellationToken);
                 continue;
             }
 
@@ -167,5 +168,24 @@ public class BufferedWaveProvider : IWaveBuffer
         this.isEmpty = true;
         this.readEvent.Reset();
         this.writeEvent.Set();
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        using var locker = await this.locker.LockAsync();
+
+        if(this.isDisposed)
+        {
+            return;
+        }
+
+        this.readEvent.Wait();
+        this.writeEvent.Wait();
+
+        this.readEvent.Dispose();
+        this.writeEvent.Dispose();
+        this.memoryOwner.Dispose();
+
+        this.isDisposed = true;
     }
 }

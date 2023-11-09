@@ -6,7 +6,7 @@ using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveStreams;
 
-public abstract class WaveStream : IWaveStream, IDisposable
+public abstract class WaveStream : IWaveStream
 {
     public abstract WaveFormat WaveFormat { get; }
 
@@ -20,31 +20,8 @@ public abstract class WaveStream : IWaveStream, IDisposable
 
     public abstract ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default);
 
-    public void Dispose()
-    {
-        this.Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    public async ValueTask DisposeAsync()
-    {
-        await this.DisposeAsyncCore().ConfigureAwait(false);
-        this.Dispose(true);
-        GC.SuppressFinalize(this);
-    }
-
-    protected virtual ValueTask DisposeAsyncCore()
+    public virtual ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;
-    }
-
-    protected virtual void Dispose(bool disposing)
-    {
-
-    }
-
-    ~WaveStream()
-    {
-        this.Dispose(false);
     }
 }

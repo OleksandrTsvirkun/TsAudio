@@ -52,13 +52,18 @@ public class PipeWaveBuffer : IWaveBuffer
 
     public async ValueTask ResetAsync(CancellationToken cancellationToken = default)
     {
-        await this.pipe.Reader.CompleteAsync();
-        await this.pipe.Writer.CompleteAsync();
+        await this.pipe.Reader.CompleteAsync().ConfigureAwait(false);
+        await this.pipe.Writer.CompleteAsync().ConfigureAwait(false);
         this.pipe.Reset();
     }
 
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> data, CancellationToken cancellationToken = default)
     {
         await this.pipe.Writer.WriteAsync(data, cancellationToken);
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
     }
 }

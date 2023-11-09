@@ -22,7 +22,7 @@ public struct SemaphoreSlimHolder : IDisposable
     {
         if(!this.disposed)
         {
-            this.semaphore.Release();
+            this.semaphore?.Release();
             this.disposed = true;
         }
     }

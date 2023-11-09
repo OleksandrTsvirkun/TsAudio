@@ -78,7 +78,7 @@ public class MemoryMappedBufferedStreamReader : Stream
                 return read;
             }
         }
-        while(buffer.Length > 0);
+        while(!cancellationToken.IsCancellationRequested && buffer.Length > 0);
 
         return read;
     }
