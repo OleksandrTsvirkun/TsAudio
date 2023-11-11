@@ -1,4 +1,8 @@
-﻿using System;
+﻿using Collections.Pooled;
+
+using Microsoft.Extensions.ObjectPool;
+
+using System;
 using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
@@ -21,7 +25,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
     private readonly ConcurrentBag<Mp3ManagedWaveStream> waveStreams;
     private readonly ManualResetEventSlim consumeWaiter;
     private readonly int bufferSize;
-    private List<Mp3Index> indices;
+    private PooledList<Mp3Index> indices;
     private CancellationTokenSource? cts;
     private Task? analyzing;
     private Mp3WaveFormat? mp3WaveFormat;
@@ -51,7 +55,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
 
     public Mp3ManagedWaveStreamFactory(Mp3ManagedWaveStreamFactoryArgs args, IMp3FrameFactory? frameFactory = null)
     {
-        this.indices = new List<Mp3Index>();
+        this.indices = new PooledList<Mp3Index>();
         this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;
         this.bufferedStreamManager = args.StreamManager;
         this.totalSamples = args.TotalSamples;
@@ -112,9 +116,6 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         {
             first = second;
         }
-
-        var frameCount = (int)(this.totalSamples ?? 0) / first.Index.SampleCount;
-        this.indices.EnsureCapacity(frameCount);
 
         if(!first.Equals(second))
         {
@@ -186,7 +187,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
             await this.bufferedStreamManager.DisposeAsync().ConfigureAwait(false);
         }
 
-        (this.indices as IDisposable)?.Dispose();
+        this.indices?.Dispose();
 
         this.isDisposed = true;
     }
