@@ -167,8 +167,6 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.callbackEvent.Set(); // give the thread a kick
                 this.RenewCancelationToken();
 
-                this.playing?.Dispose();
-
                 this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cts.Token, TaskCreationOptions.LongRunning, this.playbackTaskSchedulerLazy.Value);
 
             }
