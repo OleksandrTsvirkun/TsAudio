@@ -24,6 +24,8 @@ public abstract class PeakProvider : IPeakProvider
 
     public CancellationToken CancellationToken { get; set; }
 
+    PeakInfo IPeakProvider.Current => this.Current;
+
     public PeakInfo Current { get; protected set; }
 
     public void Init(ISampleProvider provider, int samplesPerPeak)
@@ -35,6 +37,8 @@ public abstract class PeakProvider : IPeakProvider
         this.BufferOwner?.Dispose();
         this.BufferOwner = this.Pool.Rent(samplesPerPeak);
     }
+
+    ValueTask<bool> IPeakProvider.MoveNextAsync() => this.MoveNextAsync();
 
     public async ValueTask<bool> MoveNextAsync()
     {
@@ -54,6 +58,8 @@ public abstract class PeakProvider : IPeakProvider
     }
 
     protected abstract PeakInfo CalculatePeak(ReadOnlySpan<float> memory);
+
+    ValueTask IAsyncDisposable.DisposeAsync() => this.DisposeAsync();
 
     public async ValueTask DisposeAsync()
     {
