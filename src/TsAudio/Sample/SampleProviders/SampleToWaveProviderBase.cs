@@ -13,10 +13,11 @@ namespace TsAudio.Sample.SampleProviders;
 /// Helper class for when you need to convert back to an IWaveProvider from
 /// an ISampleProvider. Keeps it as IEEE float
 /// </summary>
-public abstract class SampleToWaveProviderBase : IWaveProvider
+public abstract class SampleToWaveProviderBase : IWaveProvider, IDisposable
 {
     protected readonly ISampleProvider sampleProvider;
     protected readonly int bytesPerSample;
+    private IMemoryOwner<float> bufferOwner;
 
     /// <summary>
     /// The waveformat of this WaveProvider (same as the source)
@@ -49,21 +50,13 @@ public abstract class SampleToWaveProviderBase : IWaveProvider
         this.sampleProvider = sourceProvider;
         this.bytesPerSample = bytesPerSample;
     }
-    public ValueTask InitAsync(CancellationToken cancellationToken = default)
-    {
-        return default;
-    }
 
     /// <summary>
     /// Reads from this provider
     /// </summary>
     public virtual async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        int samplesRequired = buffer.Length / this.bytesPerSample;
-
-        using var sourceBufferOwner = this.Pool.Rent(samplesRequired);
-
-        var sourceBuffer = sourceBufferOwner.Memory.Slice(0, samplesRequired);
+        var sourceBuffer = this.EnsureBuffer(buffer.Length / this.bytesPerSample);
 
         var sourceSamples = await this.sampleProvider.ReadAsync(sourceBuffer, cancellationToken);
 
@@ -74,4 +67,23 @@ public abstract class SampleToWaveProviderBase : IWaveProvider
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     protected abstract void TransformSamples(Span<byte> buffer, ReadOnlySpan<float> sampleBuffer);
+
+    private Memory<float> EnsureBuffer(int length)
+    {
+        this.bufferOwner ??= this.Pool.Rent(length);
+
+        if(this.bufferOwner.Memory.Length < length)
+        {
+            this.bufferOwner.Dispose();
+            this.bufferOwner = this.Pool.Rent(length);
+        }
+
+        return this.bufferOwner.Memory.Slice(0, length);
+    }
+
+    public void Dispose()
+    {
+        this.bufferOwner?.Dispose();
+        this.bufferOwner = null;
+    }
 }

@@ -167,8 +167,6 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
                 this.callbackEvent.Set(); // give the thread a kick
                 this.RenewCancelationToken();
 
-                this.playing?.Dispose();
-
                 this.playing = Task.Factory.StartNew(this.DoPlaybackWrapper, this.cts.Token, TaskCreationOptions.LongRunning, this.playbackTaskSchedulerLazy.Value);
 
             }
@@ -350,13 +348,20 @@ public class WaveOutEvent : IWavePlayer, IWavePosition
         }
 
         this.cts = new CancellationTokenSource();
+
+        this.cts.Token.Register(() => this.callbackEvent.Set());
     }
 
     private async ValueTask DoPlayback(CancellationToken cancellationToken = default)
     {
-        while(this.PlaybackState != PlaybackState.Stopped && !cancellationToken.IsCancellationRequested)
+        while(this.PlaybackState != PlaybackState.Stopped 
+            && !cancellationToken.IsCancellationRequested
+            && this.callbackEvent.WaitOne())
         {
-            await Task.Run(this.callbackEvent.WaitOne, cancellationToken);
+            if (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
 
             if(this.PlaybackState != PlaybackState.Playing)
             {

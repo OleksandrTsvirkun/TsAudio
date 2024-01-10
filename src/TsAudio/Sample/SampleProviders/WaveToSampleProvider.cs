@@ -32,7 +32,7 @@ public class WaveToSampleProvider : SampleProviderConverterBase<byte>
     }
 
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
-    protected override void TransformSamples(Span<float> buffer, int size, int bytesRead, ReadOnlySpan<byte> sourceBuffer)
+    protected override void TransformSamples(Span<float> buffer, int size, ReadOnlySpan<byte> sourceBuffer)
     {
         MemoryMarshal.Cast<byte, float>(sourceBuffer).CopyTo(buffer);
     }

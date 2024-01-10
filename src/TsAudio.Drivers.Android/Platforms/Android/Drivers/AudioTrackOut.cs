@@ -1,8 +1,6 @@
 ﻿using Android.Media;
 
-using System.Buffers;
-using System.Runtime.InteropServices;
-
+using TsAudio.Drivers.Android.Utils;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveOutputs;
 using TsAudio.Wave.WaveProviders;
@@ -196,8 +194,9 @@ public class AudioTrackOut : IWavePlayer
             return;
         }
 
-        this.RenewCancelationToken();
-
+        this.cancellationTokenSource?.Cancel();
+        this.cancellationTokenSource?.Dispose();
+        this.cancellationTokenSource = new CancellationTokenSource();
         this.playing?.Dispose();
         this.playing = Task.Run(this.DoPlaybackWrapper, this.cancellationTokenSource.Token);
     }
@@ -311,18 +310,32 @@ public class AudioTrackOut : IWavePlayer
         var waveBufferSize = (this.audioTrack.BufferSizeInFrames + this.NumberOfBuffers - 1) / this.NumberOfBuffers * this.waveProvider.WaveFormat.BlockAlign;
         waveBufferSize = (waveBufferSize + 3) & ~3;
 
-        var buffer = ArrayPool<byte>.Shared.Rent(waveBufferSize);
+        var buffer = WaveSharedBufferPool.Instance.Rent(waveBufferSize);
 
         //Run the playback loop
         while(this.audioTrack.PlayState != PlayState.Stopped)
         {
+            var memory = buffer.ByteBuffer.AsMemory(0, waveBufferSize);
             //Fill the wave buffer with new samples
-            int bytesRead = await this.waveProvider.ReadAsync(buffer.AsMemory(0, waveBufferSize), cancellationToken);
+            int bytesRead = await this.waveProvider.ReadAsync(memory, cancellationToken);
+
             if(bytesRead > 0)
             {
-                buffer.AsSpan((bytesRead + 3) & ~3).Clear();
+                buffer.ByteBuffer.AsSpan((bytesRead + 3) & ~3).Clear();
+
                 //Write the wave buffer to the audio track
-                await this.WriteBuffer(buffer, 0, bytesRead);
+                //Write the specified wave buffer to the audio track
+                if(this.waveProvider.WaveFormat.Encoding == WaveFormatEncoding.Pcm)
+                {
+                    this.audioTrack.Write(buffer.ByteBuffer, 0, bytesRead);
+                }
+                else if(this.waveProvider.WaveFormat.Encoding == WaveFormatEncoding.IeeeFloat)
+                {
+                    var count = bytesRead / sizeof(float);
+
+                    await this.audioTrack.WriteAsync(buffer.FloatBuffer, 0, count, WriteMode.Blocking);
+                }
+
             }
             else
             {
@@ -332,37 +345,11 @@ public class AudioTrackOut : IWavePlayer
                 break;
             }
         }
-        ArrayPool<byte>.Shared.Return(buffer);
+
+        WaveSharedBufferPool.Instance.Return(buffer);
+
         //Flush the audio track
         this.audioTrack.Flush();
-    }
-
-    private async ValueTask WriteBuffer(byte[] buffer, int offset, int count)
-    {
-        //Write the specified wave buffer to the audio track
-        if(this.waveProvider.WaveFormat.Encoding == WaveFormatEncoding.Pcm)
-        {
-            this.audioTrack.Write(buffer, 0, count);
-        }
-        else if(this.waveProvider.WaveFormat.Encoding == WaveFormatEncoding.IeeeFloat)
-        {
-            var floatBufferSize = buffer.Length / sizeof(float);
-
-            var floatBuffer = ArrayPool<float>.Shared.Rent(floatBufferSize);
-
-            this.FillFloatBuffer(new Span<byte>(buffer, offset, count), floatBuffer);
-
-            await this.audioTrack.WriteAsync(floatBuffer, 0, floatBufferSize, WriteMode.Blocking);
-
-            ArrayPool<float>.Shared.Return(floatBuffer);
-        }
-    }
-
-    private void FillFloatBuffer(Span<byte> byteSpan, float[] floatBuffer)
-    {
-        var floatSpan = MemoryMarshal.Cast<byte, float>(byteSpan);
-
-        floatSpan.CopyTo(floatBuffer.AsSpan(0, floatSpan.Length));
     }
 
     private void ThrowIfNotInitialized()
@@ -381,14 +368,6 @@ public class AudioTrackOut : IWavePlayer
         {
             throw new ObjectDisposedException(GetType().FullName);
         }
-    }
-
-
-    private void RenewCancelationToken()
-    {
-        this.cancellationTokenSource?.Cancel();
-        this.cancellationTokenSource?.Dispose();
-        this.cancellationTokenSource = new CancellationTokenSource();
     }
 
     private int GetBufferSize(Encoding encoding, ChannelOut channelMask)

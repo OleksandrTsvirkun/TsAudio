@@ -20,14 +20,27 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
     private long advanced;
     public long Advanced => this.advanced;
 
-    public bool WritingIsDone => this.writer.Position >= this.writer.Length;
+    public bool WritingIsDone => this.writer is null ? true : this.writer.Position >= this.writer.Length;
 
     private long capacity;
     public long Capacity => this.capacity;
 
-    public long Buffered => this.writer.Position;
+    public long Buffered => this.writer is null ? this.capacity : this.writer.Position;
 
     public BufferingOptions BufferingOptions { get; }
+
+    public MemoryMappedBufferedStreamManager(FileStream fileStream, BufferingOptions bufferingOptions = null)
+    {
+        this.capacity = fileStream.Length;
+        this.advanced = fileStream.Length;
+        this.memoryMapped = MemoryMappedFile.CreateFromFile(fileStream, null, this.capacity, MemoryMappedFileAccess.Read, HandleInheritability.Inheritable, false);
+
+        this.BufferingOptions = bufferingOptions ?? new BufferingOptions()
+        {
+            PauseWriterThreshold = 4096 * 4 * 16 * 4,
+            ResumeWriterThreshold = 4096 * 4 * 4
+        };
+    }
 
     public MemoryMappedBufferedStreamManager(long capacity, BufferingOptions bufferingOptions = null)
     {
@@ -49,7 +62,17 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
 
     public async ValueTask WriteAsync(ReadOnlyMemory<byte> buffer, CancellationToken cancellationToken = default)
     {
-        await this.writeAwaiter.GetAwaiterWithCancellation(cancellationToken);
+        if(this.writer is null)
+        {
+            throw new InvalidOperationException("Writing is not allowed.");
+        }
+
+        await this.writeAwaiter.GetAwaiterWithSoftCancellation(cancellationToken);
+
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return;
+        }
 
         var toCopy = (int)Math.Max(0, Math.Min(buffer.Length, this.Capacity - this.Buffered));
 
@@ -68,10 +91,10 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
         }
     }
 
-    public ValueTask<Stream> GetStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
+    public ValueTask<IStreamReader> GetStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
         var reader = new MemoryMappedBufferedStreamReader(this, mode);
-        return new ValueTask<Stream>(reader);
+        return new ValueTask<IStreamReader>(reader);
     }
 
     public async ValueTask DisposeAsync()
@@ -84,7 +107,11 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
             }
         }
 
-        await this.writer.DisposeAsync();
+        if (this.writer is not null)
+        {
+            await this.writer.DisposeAsync();
+        }
+
         this.memoryMapped.Dispose();
     }
 
@@ -95,7 +122,7 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
 
     internal ManualResetEventSlimAwaiterWithCancellation WaitForReadAsync(CancellationToken cancellationToken = default)
     {
-        return this.readAwaiter.ResetAndGetAwaiterWithCancellation(cancellationToken);
+        return this.readAwaiter.ResetAndGetAwaiterWithSoftCancellation(cancellationToken);
     }
 
     internal void WaitForRead()

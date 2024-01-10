@@ -9,5 +9,7 @@ public class Mp3ManagedWaveStreamFactoryArgs
     public required long? TotalSamples { get; init; }
 
     public required int BufferSize { get; init; }
+
+    public required bool DisposeStreamManager { get; init; }
 }
 

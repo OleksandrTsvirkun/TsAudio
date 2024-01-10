@@ -6,7 +6,7 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Utils.Streams.MemoryMapped;
 
-public class MemoryMappedBufferedStreamReader : Stream
+public class MemoryMappedBufferedStreamReader : Stream, IStreamReader
 {
     private readonly MemoryMappedBufferedStreamManager streamManager;
     private readonly MemoryMappedViewStream reader;
@@ -78,7 +78,7 @@ public class MemoryMappedBufferedStreamReader : Stream
                 return read;
             }
         }
-        while(buffer.Length > 0);
+        while(!cancellationToken.IsCancellationRequested && buffer.Length > 0);
 
         return read;
     }

@@ -4,6 +4,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using TsAudio.Formats.Mp3;
+using TsAudio.Utils.Streams;
 using TsAudio.Wave.WaveFormats;
 
 namespace TsAudio.Wave.WaveProviders.MemoryMapped;
@@ -20,7 +21,7 @@ internal class Mp3ManagedWaveStreamArgs
 
     public required Mp3WaveFormat Mp3WaveFormat { get; init; }
 
-    public required Stream Reader { get; init; }
+    public required IStreamReader Reader { get; init; }
 
     public required ManualResetEventSlim ParseWait { get; init; }
 

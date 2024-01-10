@@ -8,11 +8,13 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
 {
     private readonly ManualResetEventSlim manualResetEvent;
     private readonly CancellationToken cancellationToken;
+    private readonly CancellationTokenRegistration cancellationTokenRegistration; 
 
     public ManualResetEventSlimAwaiterWithCancellation(ManualResetEventSlim manualResetEvent, CancellationToken cancellationToken)
     {
         this.manualResetEvent = manualResetEvent;
         this.cancellationToken = cancellationToken;
+        this.cancellationTokenRegistration = this.cancellationToken.Register(this.manualResetEvent.Set);
     }
 
     public bool IsCompleted => this.manualResetEvent.IsSet;
@@ -26,22 +28,12 @@ public struct ManualResetEventSlimAwaiterWithCancellation : INotifyCompletion
 
     public void OnCompleted(Action continuation)
     {
-        try
+        if(!this.manualResetEvent.IsSet)
         {
-            if(!this.manualResetEvent.IsSet)
-            {
-                this.manualResetEvent.Wait(this.cancellationToken);
-            }
+            this.manualResetEvent.Wait();
         }
-        catch(OperationCanceledException ex)
-        {
-            this.manualResetEvent.Set();
-        }
-        finally
-        {
-            this.cancellationToken.ThrowIfCancellationRequested();
-            continuation();
-        }
+        continuation();
+        this.cancellationTokenRegistration.Dispose();
     }
 
     public void GetResult() { }

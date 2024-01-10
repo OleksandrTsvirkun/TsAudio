@@ -4,7 +4,7 @@ using System.Threading.Tasks;
 
 namespace TsAudio.Wave.WaveProviders;
 
-public interface IWaveBuffer : IWaveProvider
+public interface IWaveBuffer : IWaveProvider, IAsyncDisposable
 {
     /// <summary>
     /// Fill the buffer with wave data.
