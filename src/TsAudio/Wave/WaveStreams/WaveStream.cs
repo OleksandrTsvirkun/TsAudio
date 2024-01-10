@@ -10,7 +10,7 @@ public abstract class WaveStream : IWaveStream
 {
     public abstract WaveFormat WaveFormat { get; }
 
-    public abstract long? TotalSamples { get; }
+    public abstract long? Length { get; }
 
     public abstract long Position { get; }
 

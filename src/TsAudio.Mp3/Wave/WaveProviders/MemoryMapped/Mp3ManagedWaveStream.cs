@@ -27,13 +27,13 @@ public class Mp3ManagedWaveStream : Mp3WaveStream
 
     public override WaveFormat WaveFormat { get; }
 
-    public override long? TotalSamples { get; }
+    public override long? Length { get; }
 
     internal Mp3ManagedWaveStream(Mp3ManagedWaveStreamArgs args) : base(args.Reader, args.BufferSize, args.FrameFactory)
     {
         this.Indices = args.Indices;
         this.Mp3WaveFormat = args.Mp3WaveFormat;
-        this.TotalSamples = args.TotalSamples;
+        this.Length = args.TotalSamples;
         this.Decompressor = new Mp3FrameDecompressor(this.Mp3WaveFormat);
         this.WaveFormat = this.Decompressor.WaveFormat;
 

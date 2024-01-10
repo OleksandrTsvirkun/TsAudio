@@ -11,7 +11,7 @@ public interface IWaveStream : IWaveProvider, IAsyncDisposable
     /// <summary>
     /// Returns SampleCount
     /// </summary>
-    long? TotalSamples { get; }
+    long? Length { get; }
 
     long Position { get; }
 
