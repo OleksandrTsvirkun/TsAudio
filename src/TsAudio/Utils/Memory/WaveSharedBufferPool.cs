@@ -28,7 +28,7 @@ public class WaveSharedBufferPool
             return buffer;
         }
 
-        return new WaveSharedBuffer(new byte[size]);
+        return new WaveSharedBuffer(size);
     }
 
     public void Return(WaveSharedBuffer waveSharedBuffer)
