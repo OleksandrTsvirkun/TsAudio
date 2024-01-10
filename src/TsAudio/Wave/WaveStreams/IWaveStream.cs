@@ -13,15 +13,7 @@ public interface IWaveStream : IWaveProvider, IAsyncDisposable
     /// </summary>
     long? Length { get; }
 
-    long Position { get; }
+    long Position { get; set; }
 
     Task InitAsync(CancellationToken cancellationToken = default);
-
-    /// <summary>
-    /// 
-    /// </summary>
-    /// <param name="position">Position in samples</param>
-    /// <param name="cancellationToken"></param>
-    /// <returns></returns>
-    ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default);
 }

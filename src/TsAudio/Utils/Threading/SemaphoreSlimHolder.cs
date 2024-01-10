@@ -20,10 +20,12 @@ public struct SemaphoreSlimHolder : IDisposable
 
     public void Dispose()
     {
-        if(!this.disposed)
+        if(this.disposed)
         {
-            this.semaphore?.Release();
-            this.disposed = true;
+            return;
         }
+
+        this.semaphore.Release();
+        this.disposed = true;
     }
 }

@@ -1,4 +1,5 @@
 ﻿using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
@@ -21,7 +22,7 @@ public abstract class Mp3WaveStream : WaveStream
     
     protected readonly ManualResetEventSlim waitForDecoding = new(true);
     protected readonly SemaphoreSlim repositionLock = new(1, 1);
-
+    protected readonly ConcurrentQueue<Task> changePositionTaskQueue;
     protected readonly int bufferSize; 
 
     protected int index;
@@ -38,6 +39,11 @@ public abstract class Mp3WaveStream : WaveStream
             }
 
             return this.Indices[this.index].SamplePosition;
+        }
+        set
+        {
+            var task = this.SetPositionAsync(value);
+            this.changePositionTaskQueue.Enqueue(task);
         }
     }
 
@@ -59,43 +65,12 @@ public abstract class Mp3WaveStream : WaveStream
         this.stream = stream;
         this.bufferSize = bufferSize;
         this.frameFactory = frameFactory ?? Mp3FrameFactory.Instance;
+        this.changePositionTaskQueue = new ConcurrentQueue<Task>();
     }
 
     public override ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
     {
         return this.WaveBuffer.ReadAsync(buffer, cancellationToken);
-    }
-
-    public override async ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default)
-    {
-        using var locker = await this.repositionLock.LockAsync(cancellationToken).ConfigureAwait(false);
-        using var decodingLock = this.waitForDecoding.Lock();
-
-        var last = this.Indices.LastOrDefault();
-
-        position = Math.Clamp(position, 0, last.SamplePosition + last.SampleCount);
-
-        if(position == 0)
-        {
-            this.index = 0;
-            return;
-        }
-
-        var midIndex = this.Indices.IndexOfNear(position, static x => x.SamplePosition);
-
-        this.index = Math.Max(0, midIndex);
-        await this.WaveBuffer.ResetAsync(cancellationToken).ConfigureAwait(false);
-        this.Decompressor.Reset();
-    }
-
-    protected Task DecodeAsync()
-    {
-        return Task.Run(this.DecodeAsyncImpl, this.DecodingCancellationTokenSource.Token);
-    }
-
-    protected virtual ValueTask DisposeCoreAsync()
-    {
-        return ValueTask.CompletedTask;
     }
 
     public override async ValueTask DisposeAsync()
@@ -127,6 +102,17 @@ public abstract class Mp3WaveStream : WaveStream
         this.disposed = true;
     }
 
+
+    protected Task DecodeAsync()
+    {
+        return Task.Run(this.DecodeAsyncImpl, this.DecodingCancellationTokenSource.Token);
+    }
+
+    protected virtual ValueTask DisposeCoreAsync()
+    {
+        return ValueTask.CompletedTask;
+    }
+
     protected virtual async Task DecodeAsyncImpl()
     {
         var cancellationToken = this.DecodingCancellationTokenSource.Token;
@@ -141,6 +127,11 @@ public abstract class Mp3WaveStream : WaveStream
             SemaphoreSlimHolder holder = default;
             try
             {
+                while(this.changePositionTaskQueue.TryDequeue(out var repositionTask))
+                {
+                    await repositionTask.ConfigureAwait(false);
+                }
+
                 holder = await this.repositionLock.LockAsync(cancellationToken);
 
                 if(this.index >= this.Indices.Count)
@@ -198,5 +189,27 @@ public abstract class Mp3WaveStream : WaveStream
     protected virtual async ValueTask DecodeExtraWaitAsync(CancellationToken cancellationToken = default)
     {
         await this.waitForDecoding.ResetAndGetAwaiterWithSoftCancellation(cancellationToken);
+    }
+
+    private async Task SetPositionAsync(long position, CancellationToken cancellationToken = default)
+    {
+        using var locker = await this.repositionLock.LockAsync(cancellationToken).ConfigureAwait(false);
+        using var decodingLock = this.waitForDecoding.Lock();
+
+        var last = this.Indices.LastOrDefault();
+
+        position = Math.Clamp(position, 0, last.SamplePosition + last.SampleCount);
+
+        if(position == 0)
+        {
+            this.index = 0;
+            return;
+        }
+
+        var midIndex = this.Indices.IndexOfNear(position, static x => x.SamplePosition);
+
+        this.index = Math.Max(0, midIndex);
+        await this.WaveBuffer.ResetAsync(cancellationToken).ConfigureAwait(false);
+        this.Decompressor.Reset();
     }
 }

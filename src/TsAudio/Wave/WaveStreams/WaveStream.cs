@@ -12,9 +12,7 @@ public abstract class WaveStream : IWaveStream
 
     public abstract long? Length { get; }
 
-    public abstract long Position { get; }
-
-    public abstract ValueTask SetPositionAsync(long position, CancellationToken cancellationToken = default);
+    public abstract long Position { get; set; }
 
     public abstract Task InitAsync(CancellationToken cancellationToken = default);
 
