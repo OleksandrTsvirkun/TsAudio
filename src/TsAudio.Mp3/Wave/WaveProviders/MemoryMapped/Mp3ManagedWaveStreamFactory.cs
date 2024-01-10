@@ -127,7 +127,7 @@ public sealed class Mp3ManagedWaveStreamFactory : IWaveStreamFactory
         return first;
     }
 
-    private Task ParseAsync(IAsyncEnumerator<Mp3FrameIndex> framesEnumerator, Stream reader, CancellationToken cancellationToken = default)
+    private Task ParseAsync(IAsyncEnumerator<Mp3FrameIndex> framesEnumerator, IStreamReader reader, CancellationToken cancellationToken = default)
     {
         ArgumentNullException.ThrowIfNull(nameof(framesEnumerator));
         ArgumentNullException.ThrowIfNull(nameof(reader));

@@ -91,10 +91,10 @@ public class MemoryMappedBufferedStreamManager : IBufferedStreamManager
         }
     }
 
-    public ValueTask<Stream> GetStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
+    public ValueTask<IStreamReader> GetStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
         var reader = new MemoryMappedBufferedStreamReader(this, mode);
-        return new ValueTask<Stream>(reader);
+        return new ValueTask<IStreamReader>(reader);
     }
 
     public async ValueTask DisposeAsync()

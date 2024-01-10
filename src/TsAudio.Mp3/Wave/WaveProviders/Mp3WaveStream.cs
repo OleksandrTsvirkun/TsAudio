@@ -7,6 +7,7 @@ using System.Threading.Tasks;
 
 using TsAudio.Formats.Mp3;
 using TsAudio.Utils;
+using TsAudio.Utils.Streams;
 using TsAudio.Utils.Threading;
 using TsAudio.Wave.WaveFormats;
 using TsAudio.Wave.WaveStreams;
@@ -15,7 +16,7 @@ namespace TsAudio.Wave.WaveProviders;
 
 public abstract class Mp3WaveStream : WaveStream
 {
-    protected readonly Stream stream;
+    protected readonly IStreamReader stream;
     protected readonly IMp3FrameFactory frameFactory;
     
     protected readonly ManualResetEventSlim waitForDecoding = new(true);
@@ -52,7 +53,7 @@ public abstract class Mp3WaveStream : WaveStream
 
     protected abstract CancellationTokenSource DecodingCancellationTokenSource { get; }
 
-    public Mp3WaveStream(Stream stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null)
+    public Mp3WaveStream(IStreamReader stream, int bufferSize = ushort.MaxValue, IMp3FrameFactory? frameFactory = null)
     {
         this.index = 0;
         this.stream = stream;

@@ -7,6 +7,7 @@ using System.Threading;
 using System.Threading.Tasks;
 
 using TsAudio.Utils.Mp3;
+using TsAudio.Utils.Streams;
 
 namespace TsAudio.Formats.Mp3;
 
@@ -55,7 +56,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
         this.mp3FramePool = mp3FramePool ?? new Mp3FrameMemoryPool();
     }
 
-    public async IAsyncEnumerable<Mp3FrameIndex> LoadFrameIndicesAsync(Stream input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    public async IAsyncEnumerable<Mp3FrameIndex> LoadFrameIndicesAsync(IStreamReader input, int bufferSize = 4096, [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
         var bufferOwner = this.memoryPool.Rent(bufferSize);
         Memory<byte> memory = default;
@@ -114,7 +115,7 @@ public class Mp3FrameFactory : IMp3FrameFactory
 
     }
 
-    public async ValueTask<Mp3Frame?> LoadFrameAsync(Stream stream, Mp3Index index, CancellationToken cancellationToken = default)
+    public async ValueTask<Mp3Frame?> LoadFrameAsync(IStreamReader stream, Mp3Index index, CancellationToken cancellationToken = default)
     {
         if (stream.Position != index.StreamPosition)
         {
