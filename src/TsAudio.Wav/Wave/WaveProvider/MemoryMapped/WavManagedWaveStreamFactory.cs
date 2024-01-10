@@ -36,12 +36,12 @@ public class WavWaveStreamFactory : IWaveStreamFactory
 
     public async Task InitAsync(CancellationToken cancellationToken = default)
     {
-        using var stream = await this.streamManager.GetStreamAsync(StreamReadMode.Wait, cancellationToken);
+        await using var stream = await this.streamManager.GetStreamAsync(StreamReadMode.Wait, cancellationToken);
 
         this.metadata = await this.metadataReader.ReadWavFormatMetadataAsync(stream, cancellationToken);
     }
 
-    public async ValueTask<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
+    public async Task<IWaveStream> GetWaveStreamAsync(StreamReadMode mode = StreamReadMode.Wait, CancellationToken cancellationToken = default)
     {
         if(this.metadata is null)
         {
@@ -62,5 +62,4 @@ public class WavWaveStreamFactory : IWaveStreamFactory
     {
         await this.streamManager.DisposeAsync().ConfigureAwait(false);
     }
-
 }

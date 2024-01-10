@@ -1,6 +1,8 @@
-﻿namespace TsAudio.Formats.Wav;
+﻿using TsAudio.Utils.Streams;
+
+namespace TsAudio.Formats.Wav;
 
 public interface IWavFormatMetadataReader
 {
-    ValueTask<WavMetadata> ReadWavFormatMetadataAsync(Stream stream, CancellationToken cancellationToken = default);
+    ValueTask<WavMetadata> ReadWavFormatMetadataAsync(IStreamReader stream, CancellationToken cancellationToken = default);
 }
